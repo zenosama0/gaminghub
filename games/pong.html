@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Aurora Pong — quiet rally</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg-deep-solid:#0e1024;--panel:rgba(255,255,255,0.045);--line:rgba(255,255,255,0.09);--teal:#7FE7C4;--lavender:#B9A3E3;--moon:#F5EFE0;--text:#F5EFE0;}
+  *{box-sizing:border-box;} html,body{margin:0;padding:0;width:100%;height:100vh;background:var(--bg-deep-solid);color:var(--text);font-family:'Manrope',sans-serif;overflow:hidden;}
+  #bgCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;}
+  #app{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;}
+  header{display:flex;justify-content:space-between;padding:10px 18px;}
+  .brand .title{font-family:'Fraunces',serif;font-size:22px;} .brand em{color:var(--lavender);font-style:italic;}
+  .icon-btn{width:38px;height:38px;border-radius:50%;background:var(--panel);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--text);text-decoration:none;}
+  main{flex:1;display:flex;justify-content:center;align-items:center;}
+  .board-wrap{position:relative;border-radius:18px;background:rgba(255,255,255,0.02);border:1px solid var(--line);padding:10px;}
+  #board{border-radius:10px;background:radial-gradient(120% 140% at 50% -10%, rgba(185,163,227,0.1), rgba(10,11,30,0.65) 60%);}
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(9,10,22,0.8);opacity:0;pointer-events:none;transition:0.2s;border-radius:10px;}
+  .overlay.visible{opacity:1;pointer-events:auto;}
+  .btn{background:linear-gradient(135deg,var(--teal),var(--lavender));color:#000;border:none;padding:12px 28px;border-radius:30px;font-weight:bold;cursor:pointer;margin-top:10px;}
+  .score-board{position:absolute;top:20px;width:100%;display:flex;justify-content:space-around;font-family:Fraunces;font-size:32px;color:rgba(255,255,255,0.2);pointer-events:none;}
+  #mobileControls{display:none;padding:20px;justify-content:space-between;width:100%;max-width:500px;margin:0 auto;} .mc-col{display:flex;flex-direction:column;gap:10px;} .mc-btn{background:var(--panel);border:1px solid var(--line);width:60px;height:60px;border-radius:12px;font-size:24px;display:flex;align-items:center;justify-content:center;user-select:none;}
+  @media(max-width:700px){#mobileControls{display:flex;}}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div id="app">
+  <header><div class="brand"><div class="title">Aurora <em>Pong</em></div></div><div class="iconbar"><a class="icon-btn" href="../index.html">⌂</a></div></header>
+  <main>
+    <div class="board-wrap">
+      <div class="score-board"><span id="p1Score">0</span><span id="p2Score">0</span></div>
+      <canvas id="board" width="600" height="400"></canvas>
+      <div class="overlay visible" id="overlayStart"><button class="btn" id="btnStart">Begin</button></div>
+    </div>
+  </main>
+  <div id="mobileControls">
+    <div class="mc-col"><div class="mc-btn" id="btnUp">↑</div><div class="mc-btn" id="btnDown">↓</div></div>
+  </div>
+</div>
+<script>
+(function(){
+  const ctx=document.getElementById('board').getContext('2d'), W=600, H=400;
+  let p1={y:H/2-30, s:0}, p2={y:H/2-30, s:0}, ball={x:W/2, y:H/2, dx:4, dy:3, r:6}, keys={}, state='idle';
+
+  const Audio = {
+    c:null, g:null,
+    init(){ if(!this.c){ this.c=new AudioContext(); this.g=this.c.createGain(); this.g.gain.value=0.2; this.g.connect(this.c.destination); } },
+    play(f){ if(!this.c)return; let o=this.c.createOscillator(), g=this.c.createGain(); o.type='sine'; o.frequency.value=f; g.gain.setValueAtTime(0.5,this.c.currentTime); g.gain.exponentialRampToValueAtTime(0.01,this.c.currentTime+0.3); o.connect(g); g.connect(this.g); o.start(); o.stop(this.c.currentTime+0.3); }
+  };
+
+  function resetBall(dir){ ball={x:W/2, y:H/2, dx:4*dir, dy:(Math.random()*4-2), r:6}; }
+  function update(){
+    if(state!=='run')return;
+    if(keys.ArrowUp||keys.btnUp) p1.y=Math.max(0, p1.y-6);
+    if(keys.ArrowDown||keys.btnDown) p1.y=Math.min(H-60, p1.y+6);
+    
+    // AI
+    if(ball.y < p2.y+20) p2.y-=3.5; else if(ball.y > p2.y+40) p2.y+=3.5;
+    p2.y=Math.max(0, Math.min(H-60, p2.y));
+
+    ball.x+=ball.dx; ball.y+=ball.dy;
+    if(ball.y<0 || ball.y>H){ ball.dy*=-1; Audio.play(300); }
+    
+    if(ball.x<30 && ball.y>p1.y && ball.y<p1.y+60){ ball.dx*=-1.05; ball.x=30; Audio.play(500); }
+    if(ball.x>W-30 && ball.y>p2.y && ball.y<p2.y+60){ ball.dx*=-1.05; ball.x=W-30; Audio.play(600); }
+    
+    if(ball.x<0){ p2.s++; Audio.play(200); document.getElementById('p2Score').innerText=p2.s; resetBall(1); }
+    if(ball.x>W){ p1.s++; Audio.play(800); document.getElementById('p1Score').innerText=p1.s; resetBall(-1); }
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    if(state==='run'){
+      ctx.fillStyle='#F5EFE0'; ctx.shadowBlur=15; ctx.shadowColor='#7FE7C4';
+      ctx.fillRect(10, p1.y, 10, 60); ctx.fillRect(W-20, p2.y, 10, 60);
+      ctx.shadowColor='#F2A7B0';
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    }
+  }
+  function loop(){ update(); draw(); requestAnimationFrame(loop); }
+
+  window.onkeydown=e=>keys[e.key]=true; window.onkeyup=e=>keys[e.key]=false;
+  ['btnUp','btnDown'].forEach(id=>{
+    let el=document.getElementById(id);
+    el.ontouchstart=e=>{e.preventDefault(); keys[id]=true;}
+    el.ontouchend=e=>{e.preventDefault(); keys[id]=false;}
+  });
+  document.getElementById('btnStart').onclick=()=>{Audio.init(); state='run'; document.getElementById('overlayStart').classList.remove('visible'); resetBall(1);};
+  loop();
+})();
+</script>
+</body>
+</html>

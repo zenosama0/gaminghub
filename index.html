@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+  /* ============================================================
+     ADD YOUR GAMES HERE — nothing else needs to change.
+     Scroll to the <script> at the bottom, edit the GAMES array.
+     ============================================================ */
+
+  :root{
+    --bg-void:#05070d;
+    --bg-deep:#0a1120;
+    --panel:rgba(255,255,255,0.045);
+    --panel-border:rgba(255,255,255,0.09);
+    --ice:#eef3fb;
+    --mist:#8fa0bb;
+    --ps-blue:#3ea6ff;
+    --ps-blue-2:#7b5cff;
+    --glow:0 0 40px rgba(62,166,255,0.35);
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  html,body{
+    background:var(--bg-void);
+    color:var(--ice);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  /* ---------- ambient PS5-style aurora background ---------- */
+  .aurora{
+    position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 8%, rgba(62,166,255,0.16), transparent 60%),
+      radial-gradient(ellipse 55% 45% at 90% 15%, rgba(123,92,255,0.14), transparent 60%),
+      linear-gradient(180deg, var(--bg-void) 0%, var(--bg-deep) 55%, var(--bg-void) 100%);
+  }
+  .aurora::before, .aurora::after{
+    content:"";
+    position:absolute;
+    width:70vmax; height:70vmax;
+    border-radius:50%;
+    filter:blur(90px);
+    opacity:0.35;
+    animation:drift 26s ease-in-out infinite alternate;
+  }
+  .aurora::before{
+    background:radial-gradient(circle, var(--ps-blue), transparent 65%);
+    top:-25vmax; left:-15vmax;
+  }
+  .aurora::after{
+    background:radial-gradient(circle, var(--ps-blue-2), transparent 65%);
+    bottom:-30vmax; right:-15vmax;
+    animation-delay:-8s;
+  }
+  @keyframes drift{
+    0%{ transform:translate(0,0) scale(1); }
+    100%{ transform:translate(4vw,3vh) scale(1.08); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .aurora::before, .aurora::after{ animation:none; }
+  }
+
+  /* ---------- shell ---------- */
+  .shell{ position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:28px 5vw 20px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:12px;
+    font-family:'Titillium Web',sans-serif;
+    font-weight:900;
+    font-size:20px;
+    letter-spacing:0.5px;
+  }
+  .brand .dot{
+    width:10px; height:10px; border-radius:50%;
+    background:var(--ps-blue);
+    box-shadow:0 0 12px 3px rgba(62,166,255,0.7);
+  }
+  .brand span{ color:var(--mist); font-weight:400; }
+
+  .search-wrap{
+    position:relative;
+    width:min(320px, 40vw);
+  }
+  #search{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:999px;
+    padding:11px 18px 11px 40px;
+    color:var(--ice);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    outline:none;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  #search::placeholder{ color:var(--mist); }
+  #search:focus{
+    border-color:var(--ps-blue);
+    box-shadow:0 0 0 3px rgba(62,166,255,0.15);
+  }
+  .search-wrap svg{
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    width:16px; height:16px; stroke:var(--mist);
+  }
+
+  .header-right{ display:flex; align-items:center; gap:14px; }
+
+  .signin-btn{
+    font-family:'Titillium Web',sans-serif;
+    font-weight:700; font-size:13px; letter-spacing:0.3px;
+    background:linear-gradient(135deg, var(--ps-blue), var(--ps-blue-2));
+    color:#05070d; border:none; border-radius:999px;
+    padding:10px 20px; cursor:pointer;
+    box-shadow:0 8px 20px -8px rgba(62,166,255,0.5);
+    transition:transform .15s ease;
+    white-space:nowrap;
+  }
+  .signin-btn:hover{ transform:translateY(-1px); }
+  .signin-btn:active{ transform:scale(0.96); }
+
+  .profile-chip{
+    display:flex; align-items:center; gap:9px;
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:999px; padding:5px 14px 5px 5px; cursor:pointer;
+    transition:background .15s ease;
+    white-space:nowrap;
+  }
+  .profile-chip:hover{ background:var(--panel-strong, rgba(255,255,255,0.08)); }
+  .profile-avatar{
+    width:30px; height:30px; border-radius:50%;
+    background:linear-gradient(135deg, var(--ps-blue), var(--ps-blue-2));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Titillium Web',sans-serif; font-weight:700; font-size:13px;
+    color:#05070d; overflow:hidden; flex:0 0 auto;
+  }
+  .profile-avatar img{ width:100%; height:100%; object-fit:cover; }
+  .profile-name{ font-size:13.5px; font-weight:600; color:var(--ice); }
+
+  /* Auth / profile modal */
+  .auth-modal-back{
+    position:fixed; inset:0; z-index:50;
+    background:rgba(3,4,10,0.68);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .auth-modal-back.visible{ opacity:1; pointer-events:auto; }
+  .auth-modal{
+    background:var(--bg-deep); border:1px solid var(--panel-border);
+    border-radius:18px; padding:28px; width:100%; max-width:380px;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,0.7);
+  }
+  .auth-modal h2{
+    font-family:'Titillium Web',sans-serif; font-weight:800; font-size:22px;
+    margin:0 0 4px; color:var(--ice);
+  }
+  .auth-modal .sub{ color:var(--mist); font-size:13px; margin-bottom:18px; }
+  .auth-tabs{ display:flex; gap:6px; margin-bottom:18px; }
+  .auth-tab{
+    flex:1; text-align:center; padding:8px; border-radius:10px;
+    font-size:13px; font-weight:700; letter-spacing:0.3px; cursor:pointer;
+    color:var(--mist); background:var(--panel); border:1px solid var(--panel-border);
+    transition:background .15s ease, color .15s ease;
+  }
+  .auth-tab.active{
+    background:linear-gradient(135deg, var(--ps-blue), var(--ps-blue-2));
+    color:#05070d; border-color:transparent;
+  }
+  .auth-field{ margin-bottom:14px; }
+  .auth-field label{
+    display:block; font-size:12px; color:var(--mist); margin-bottom:6px;
+    letter-spacing:0.3px;
+  }
+  .auth-field input, .auth-field textarea{
+    width:100%; background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:10px; padding:10px 12px; color:var(--ice);
+    font-family:'Inter',sans-serif; font-size:14px; outline:none;
+    transition:border-color .2s;
+  }
+  .auth-field textarea{ resize:vertical; min-height:64px; }
+  .auth-field input:focus, .auth-field textarea:focus{ border-color:var(--ps-blue); }
+  .auth-error{
+    color:#f28fa0; font-size:12.5px; margin:-4px 0 14px; min-height:1px;
+  }
+  .auth-submit{
+    width:100%; font-family:'Titillium Web',sans-serif; font-weight:700; font-size:14px;
+    background:linear-gradient(135deg, var(--ps-blue), var(--ps-blue-2));
+    color:#05070d; border:none; border-radius:12px; padding:12px; cursor:pointer;
+    transition:transform .15s ease;
+  }
+  .auth-submit:hover{ transform:translateY(-1px); }
+  .auth-submit:disabled{ opacity:0.6; cursor:default; transform:none; }
+  .auth-close{
+    position:absolute; top:16px; right:16px; width:30px; height:30px; border-radius:50%;
+    background:var(--panel); border:1px solid var(--panel-border); color:var(--ice);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px;
+  }
+  .auth-modal{ position:relative; }
+
+  .profile-menu{
+    position:absolute; top:60px; right:5vw; z-index:40;
+    background:var(--bg-deep); border:1px solid var(--panel-border);
+    border-radius:16px; padding:16px; width:260px;
+    box-shadow:0 30px 70px -20px rgba(0,0,0,0.6);
+    opacity:0; pointer-events:none; transform:translateY(-6px);
+    transition:opacity .15s ease, transform .15s ease;
+  }
+  .profile-menu.visible{ opacity:1; pointer-events:auto; transform:translateY(0); }
+  .pm-header{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .pm-avatar-wrap{ position:relative; }
+  .pm-avatar-wrap .profile-avatar{ width:44px; height:44px; font-size:16px; }
+  .pm-avatar-edit{
+    position:absolute; bottom:-3px; right:-3px; width:18px; height:18px; border-radius:50%;
+    background:var(--ps-blue); color:#05070d; font-size:10px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    border:2px solid var(--bg-deep);
+  }
+  .pm-name{ font-weight:700; font-size:14px; color:var(--ice); }
+  .pm-bio{ font-size:12px; color:var(--mist); margin-top:2px; max-width:170px; }
+  .pm-row{ margin-bottom:10px; }
+  .pm-row label{ font-size:11px; color:var(--mist); display:block; margin-bottom:4px; }
+  .pm-row input, .pm-row textarea{
+    width:100%; background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:8px; padding:7px 9px; color:var(--ice); font-size:12.5px;
+    font-family:'Inter',sans-serif; outline:none;
+  }
+  .pm-row textarea{ min-height:50px; resize:vertical; }
+  .pm-save{
+    width:100%; font-size:12.5px; font-weight:700; padding:8px; border-radius:8px;
+    background:var(--panel-strong,rgba(255,255,255,0.08)); border:1px solid var(--panel-border);
+    color:var(--ice); cursor:pointer; margin-bottom:6px;
+  }
+  .pm-logout{
+    width:100%; font-size:12.5px; font-weight:600; padding:8px; border-radius:8px;
+    background:transparent; border:1px solid var(--panel-border);
+    color:var(--mist); cursor:pointer;
+  }
+
+  main{
+    flex:1;
+    padding:10px 5vw 80px;
+  }
+
+  .hero{
+    padding:28px 0 40px;
+  }
+  .hero .eyebrow{
+    font-family:'Titillium Web',sans-serif;
+    font-size:12px;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    color:var(--ps-blue);
+    font-weight:700;
+  }
+  .hero h1{
+    font-family:'Titillium Web',sans-serif;
+    font-weight:900;
+    font-size:clamp(30px, 4.5vw, 52px);
+    letter-spacing:0.5px;
+    margin-top:6px;
+    background:linear-gradient(100deg, var(--ice) 40%, var(--mist) 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .hero p{
+    color:var(--mist);
+    margin-top:8px;
+    font-size:15px;
+    max-width:520px;
+  }
+
+  /* ---------- grid ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+    gap:22px;
+  }
+
+  .card{
+    position:relative;
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:16px;
+    padding:0;
+    overflow:hidden;
+    cursor:pointer;
+    text-decoration:none;
+    color:inherit;
+    display:flex;
+    flex-direction:column;
+    transition:transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s, border-color .28s;
+    animation:rise .5s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .card:nth-child(n){ animation-delay:calc(var(--i, 0) * 40ms); }
+
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(14px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .card:hover, .card:focus-visible{
+    transform:translateY(-6px) scale(1.03);
+    border-color:rgba(62,166,255,0.55);
+    box-shadow:var(--glow);
+    outline:none;
+  }
+
+  .card .cover{
+    position:relative;
+    aspect-ratio:1/1;
+    display:flex; align-items:center; justify-content:center;
+    font-size:56px;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08), transparent 60%),
+      linear-gradient(160deg, #131b2c, #0b0f19);
+    overflow:hidden;
+  }
+  .card .cover img{
+    width:100%; height:100%; object-fit:cover;
+  }
+  .card .cover .fallback{
+    font-family:'Titillium Web',sans-serif;
+    font-weight:900;
+    font-size:34px;
+    color:var(--mist);
+  }
+  .card .cover::after{
+    content:"";
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.55) 100%);
+  }
+
+  .card .sheen{
+    position:absolute; inset:0;
+    background:linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.14) 50%, transparent 60%);
+    transform:translateX(-120%);
+    transition:transform .6s ease;
+    pointer-events:none;
+  }
+  .card:hover .sheen{ transform:translateX(120%); }
+
+  .card .info{
+    padding:14px 16px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .card .name{
+    font-family:'Titillium Web',sans-serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:0.2px;
+  }
+  .card .tag{
+    font-size:11.5px;
+    color:var(--mist);
+    text-transform:uppercase;
+    letter-spacing:1px;
+  }
+
+  .play-badge{
+    position:absolute;
+    top:10px; right:10px;
+    width:32px; height:32px;
+    border-radius:50%;
+    background:rgba(5,7,13,0.55);
+    border:1px solid rgba(255,255,255,0.15);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0;
+    transform:scale(0.8);
+    transition:opacity .25s, transform .25s;
+    backdrop-filter:blur(6px);
+  }
+  .card:hover .play-badge{ opacity:1; transform:scale(1); }
+  .play-badge svg{ width:13px; height:13px; fill:var(--ice); }
+
+  .empty{
+    grid-column:1/-1;
+    text-align:center;
+    color:var(--mist);
+    padding:60px 0;
+    font-size:14px;
+  }
+
+  footer{
+    text-align:center;
+    padding:24px 0 30px;
+    color:var(--mist);
+    font-size:12px;
+    letter-spacing:0.5px;
+  }
+
+  @media (max-width:560px){
+    header{ flex-direction:column; align-items:flex-start; gap:14px; }
+    .search-wrap{ width:100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora"></div>
+
+<div class="shell">
+  <header>
+    <div class="brand"><span class="dot"></span>GAME<span>&nbsp;HUB</span></div>
+    <div class="header-right">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search" type="text" placeholder="Search games..." autocomplete="off">
+      </div>
+      <div id="authArea">
+        <button class="signin-btn" id="btnSignIn">Sign in</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="auth-modal-back" id="authModalBack">
+    <div class="auth-modal">
+      <div class="auth-close" id="authClose">&times;</div>
+      <h2 id="authTitle">Welcome back</h2>
+      <div class="sub" id="authSub">Sign in to keep your profile and avatar.</div>
+      <div class="auth-tabs">
+        <div class="auth-tab active" id="tabSignIn">Sign in</div>
+        <div class="auth-tab" id="tabSignUp">Sign up</div>
+      </div>
+      <form id="authForm">
+        <div class="auth-field" id="fieldDisplayName" style="display:none;">
+          <label>Display name</label>
+          <input type="text" id="authDisplayName" maxlength="40" placeholder="How should we show your name?">
+        </div>
+        <div class="auth-field">
+          <label>Username</label>
+          <input type="text" id="authUsername" maxlength="20" autocomplete="username" placeholder="3-20 characters, letters/numbers">
+        </div>
+        <div class="auth-field">
+          <label>Password</label>
+          <input type="password" id="authPassword" autocomplete="current-password" placeholder="At least 6 characters">
+        </div>
+        <div class="auth-error" id="authError"></div>
+        <button class="auth-submit" type="submit" id="authSubmit">Sign in</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="profile-menu" id="profileMenu">
+    <div class="pm-header">
+      <div class="pm-avatar-wrap">
+        <div class="profile-avatar" id="pmAvatar">?</div>
+        <div class="pm-avatar-edit" id="pmAvatarEdit" title="Change avatar">✎</div>
+      </div>
+      <div>
+        <div class="pm-name" id="pmName">—</div>
+        <div class="pm-bio" id="pmBioDisplay"></div>
+      </div>
+    </div>
+    <div class="pm-row">
+      <label>Display name</label>
+      <input type="text" id="pmDisplayName" maxlength="40">
+    </div>
+    <div class="pm-row">
+      <label>Bio</label>
+      <textarea id="pmBio" maxlength="240" placeholder="Say something about yourself..."></textarea>
+    </div>
+    <button class="pm-save" id="pmSave">Save changes</button>
+    <button class="pm-logout" id="pmLogout">Sign out</button>
+  </div>
+  <input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;">
+
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Your Library</div>
+      <h1>Pick something to play</h1>
+      <p>Every game you add below shows up here automatically. Click a tile to jump straight in.</p>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <footer>Game Hub — built for easy expansion</footer>
+</div>
+
+<script>
+  /* ============================================================
+     👉 ADD GAMES HERE.
+     Each entry needs:
+       name : display name shown on the tile
+       file : the html file inside ./games/  (just the filename)
+       icon : emoji, or a path to an image (png/jpg/svg), or omit
+              entirely to fall back to the game's initial letter
+       tag  : optional short label under the name (genre, etc.)
+
+     Example with an image icon:
+       { name: "Neon Runner", file: "neon-runner.html",
+         icon: "games/icons/neon-runner.png", tag: "Arcade" }
+     ============================================================ */
+
+  const GAMES = [
+    { name: "Snake",        file: "snake.html",        icon: "🐍", tag: "Arcade" },
+    { name: "Tetris",       file: "tetris.html",       icon: "🧱", tag: "Puzzle" },
+    { name: "2048",         file: "2048.html",         icon: "🔢", tag: "Puzzle" },
+    { name: "Pong",         file: "pong.html",         icon: "🏓", tag: "Classic" },
+    { name: "Memory Match", file: "memory-match.html", icon: "🧠", tag: "Casual" },
+    { name: "Space Invaders", file: "space-invaders.html", icon: "👾", tag: "Shooter" },
+  ];
+
+  const GAMES_DIR = "games/"; // change if your games live elsewhere
+
+  const grid = document.getElementById("grid");
+  const search = document.getElementById("search");
+
+  function playIconSVG(){
+    return '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+  }
+
+  function isImagePath(icon){
+    return typeof icon === "string" && /\.(png|jpe?g|svg|webp|gif)$/i.test(icon);
+  }
+
+  function render(list){
+    grid.innerHTML = "";
+
+    if (list.length === 0){
+      grid.innerHTML = '<div class="empty">No games match your search.</div>';
+      return;
+    }
+
+    list.forEach((game, i) => {
+      const a = document.createElement("a");
+      a.className = "card";
+      a.href = GAMES_DIR + game.file;
+      a.style.setProperty("--i", i);
+
+      const coverContent = game.icon
+        ? (isImagePath(game.icon)
+            ? `<img src="${game.icon}" alt="${game.name} icon">`
+            : `<span>${game.icon}</span>`)
+        : `<span class="fallback">${game.name.charAt(0).toUpperCase()}</span>`;
+
+      a.innerHTML = `
+        <div class="cover">
+          ${coverContent}
+        </div>
+        <div class="sheen"></div>
+        <div class="play-badge">${playIconSVG()}</div>
+        <div class="info">
+          <div class="name">${game.name}</div>
+          ${game.tag ? `<div class="tag">${game.tag}</div>` : ""}
+        </div>
+      `;
+      grid.appendChild(a);
+    });
+  }
+
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase();
+    const filtered = GAMES.filter(g => g.name.toLowerCase().includes(q));
+    render(filtered);
+  });
+
+  render(GAMES);
+
+  /* ============================= ACCOUNTS ============================= */
+  const AuthAPI = {
+    token: localStorage.getItem('gh_token') || null,
+    async call(path, method, body){
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.token) headers['Authorization'] = 'Bearer ' + this.token;
+      const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+      return data;
+    },
+    setToken(t){
+      this.token = t;
+      if (t) localStorage.setItem('gh_token', t);
+      else localStorage.removeItem('gh_token');
+    }
+  };
+
+  let currentProfile = null;
+  let authMode = 'signin';
+
+  const authModalBack = document.getElementById('authModalBack');
+  const authArea = document.getElementById('authArea');
+  const authForm = document.getElementById('authForm');
+  const authError = document.getElementById('authError');
+  const authSubmit = document.getElementById('authSubmit');
+  const profileMenu = document.getElementById('profileMenu');
+
+  function openAuthModal(mode){
+    authMode = mode;
+    document.getElementById('tabSignIn').classList.toggle('active', mode==='signin');
+    document.getElementById('tabSignUp').classList.toggle('active', mode==='signup');
+    document.getElementById('fieldDisplayName').style.display = mode==='signup' ? 'block' : 'none';
+    document.getElementById('authTitle').textContent = mode==='signin' ? 'Welcome back' : 'Create your profile';
+    document.getElementById('authSub').textContent = mode==='signin'
+      ? 'Sign in to keep your profile and avatar.'
+      : 'Pick a username and password — your profile is saved on this hub.';
+    authSubmit.textContent = mode==='signin' ? 'Sign in' : 'Create account';
+    authError.textContent = '';
+    authModalBack.classList.add('visible');
+  }
+  function closeAuthModal(){ authModalBack.classList.remove('visible'); authForm.reset(); }
+
+  document.getElementById('btnSignIn').addEventListener('click', ()=> openAuthModal('signin'));
+  document.getElementById('tabSignIn').addEventListener('click', ()=> openAuthModal('signin'));
+  document.getElementById('tabSignUp').addEventListener('click', ()=> openAuthModal('signup'));
+  document.getElementById('authClose').addEventListener('click', closeAuthModal);
+  authModalBack.addEventListener('click', e=>{ if(e.target===authModalBack) closeAuthModal(); });
+
+  authForm.addEventListener('submit', async e=>{
+    e.preventDefault();
+    authError.textContent = '';
+    authSubmit.disabled = true;
+    const username = document.getElementById('authUsername').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const displayName = document.getElementById('authDisplayName').value.trim();
+    try{
+      const data = authMode === 'signin'
+        ? await AuthAPI.call('/api/login', 'POST', { username, password })
+        : await AuthAPI.call('/api/signup', 'POST', { username, password, displayName });
+      AuthAPI.setToken(data.token);
+      currentProfile = data.profile;
+      renderAuthArea();
+      closeAuthModal();
+    } catch(err){
+      authError.textContent = err.message;
+    } finally {
+      authSubmit.disabled = false;
+    }
+  });
+
+  function initials(name){
+    return (name||'?').trim().slice(0,1).toUpperCase();
+  }
+
+  function renderAuthArea(){
+    if (!currentProfile){
+      authArea.innerHTML = '<button class="signin-btn" id="btnSignIn">Sign in</button>';
+      document.getElementById('btnSignIn').addEventListener('click', ()=> openAuthModal('signin'));
+      profileMenu.classList.remove('visible');
+      return;
+    }
+    const avatarHtml = currentProfile.avatarUrl
+      ? `<img src="${currentProfile.avatarUrl}?t=${Date.now()}" alt="avatar">`
+      : initials(currentProfile.displayName);
+    authArea.innerHTML = `
+      <div class="profile-chip" id="profileChip">
+        <div class="profile-avatar">${avatarHtml}</div>
+        <div class="profile-name">${currentProfile.displayName}</div>
+      </div>`;
+    document.getElementById('profileChip').addEventListener('click', toggleProfileMenu);
+    fillProfileMenu();
+  }
+
+  function fillProfileMenu(){
+    if (!currentProfile) return;
+    const avatarHtml = currentProfile.avatarUrl
+      ? `<img src="${currentProfile.avatarUrl}?t=${Date.now()}" alt="avatar">`
+      : initials(currentProfile.displayName);
+    document.getElementById('pmAvatar').innerHTML = avatarHtml;
+    document.getElementById('pmName').textContent = currentProfile.displayName;
+    document.getElementById('pmBioDisplay').textContent = currentProfile.bio || '';
+    document.getElementById('pmDisplayName').value = currentProfile.displayName;
+    document.getElementById('pmBio').value = currentProfile.bio || '';
+  }
+
+  function toggleProfileMenu(){ profileMenu.classList.toggle('visible'); }
+  document.addEventListener('click', e=>{
+    if (!profileMenu.contains(e.target) && !e.target.closest('#profileChip')){
+      profileMenu.classList.remove('visible');
+    }
+  });
+
+  document.getElementById('pmSave').addEventListener('click', async ()=>{
+    try{
+      const displayName = document.getElementById('pmDisplayName').value.trim();
+      const bio = document.getElementById('pmBio').value;
+      const data = await AuthAPI.call('/api/profile', 'POST', { displayName, bio });
+      currentProfile = data.profile;
+      renderAuthArea();
+    } catch(err){ alert(err.message); }
+  });
+
+  document.getElementById('pmLogout').addEventListener('click', async ()=>{
+    try{ await AuthAPI.call('/api/logout', 'POST'); } catch{}
+    AuthAPI.setToken(null);
+    currentProfile = null;
+    renderAuthArea();
+  });
+
+  document.getElementById('pmAvatarEdit').addEventListener('click', ()=>{
+    document.getElementById('avatarInput').click();
+  });
+  document.getElementById('avatarInput').addEventListener('change', async e=>{
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 4*1024*1024){ alert('Please choose an image under 4MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = async ()=>{
+      try{
+        const data = await AuthAPI.call('/api/avatar', 'POST', { imageDataUrl: reader.result });
+        currentProfile = data.profile;
+        renderAuthArea();
+        fillProfileMenu();
+        profileMenu.classList.add('visible');
+      } catch(err){ alert(err.message); }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  (async function initAuth(){
+    if (!AuthAPI.token) return;
+    try{
+      const data = await AuthAPI.call('/api/me', 'GET');
+      currentProfile = data.profile;
+      renderAuthArea();
+    } catch {
+      AuthAPI.setToken(null);
+    }
+  })();
+</script>
+
+</body>
+</html>
