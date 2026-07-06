@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 
   /* ============================================================
@@ -169,6 +170,14 @@
     margin:0 0 4px; color:var(--ice);
   }
   .auth-modal .sub{ color:var(--mist); font-size:13px; margin-bottom:18px; }
+  .google-btn-wrap{ display:flex; justify-content:center; margin-bottom:14px; min-height:40px; }
+  .auth-divider{
+    display:flex; align-items:center; gap:10px; margin:4px 0 18px;
+    color:var(--mist); font-size:11.5px; letter-spacing:0.3px; text-transform:uppercase;
+  }
+  .auth-divider::before, .auth-divider::after{
+    content:''; flex:1; height:1px; background:var(--panel-border);
+  }
   .auth-tabs{ display:flex; gap:6px; margin-bottom:18px; }
   .auth-tab{
     flex:1; text-align:center; padding:8px; border-radius:10px;
@@ -319,6 +328,11 @@
     box-shadow:var(--glow);
     outline:none;
   }
+  .card.gp-focused{
+    transform:translateY(-6px) scale(1.03);
+    border-color:rgba(62,166,255,0.7);
+    box-shadow:0 0 0 3px var(--ps-blue), var(--glow);
+  }
 
   .card .cover{
     position:relative;
@@ -408,6 +422,17 @@
   @media (max-width:560px){
     header{ flex-direction:column; align-items:flex-start; gap:14px; }
     .search-wrap{ width:100%; }
+    .header-right{ width:100%; flex-direction:column; align-items:flex-start; gap:10px; }
+    .grid{
+      grid-template-columns:repeat(2, 1fr);
+      gap:12px;
+    }
+    .card .cover{ font-size:38px; }
+    .card .cover .fallback{ font-size:24px; }
+    .card .info{ padding:10px 10px 12px; }
+    .card .name{ font-size:13px; }
+    .card .tag{ font-size:10px; }
+    .play-badge{ width:26px; height:26px; }
   }
 </style>
 </head>
@@ -432,16 +457,20 @@
   <div class="auth-modal-back" id="authModalBack">
     <div class="auth-modal">
       <div class="auth-close" id="authClose">&times;</div>
-      <h2 id="authTitle">Welcome back</h2>
-      <div class="sub" id="authSub">Sign in to keep your profile and avatar.</div>
+      <h2 id="authTitle">Keep your progress</h2>
+      <div class="sub" id="authSub">Sign in to save your high scores, name, and avatar — and pick up right where you left off on any device.</div>
+
+      <div id="googleBtnContainer" class="google-btn-wrap"></div>
+      <div class="auth-divider"><span>or use a username</span></div>
+
       <div class="auth-tabs">
-        <div class="auth-tab active" id="tabSignIn">Sign in</div>
-        <div class="auth-tab" id="tabSignUp">Sign up</div>
+        <div class="auth-tab active" id="tabSignIn">I have an account</div>
+        <div class="auth-tab" id="tabSignUp">I'm new here</div>
       </div>
       <form id="authForm">
         <div class="auth-field" id="fieldDisplayName" style="display:none;">
-          <label>Display name</label>
-          <input type="text" id="authDisplayName" maxlength="40" placeholder="How should we show your name?">
+          <label>What should we call you?</label>
+          <input type="text" id="authDisplayName" maxlength="40" placeholder="Your display name">
         </div>
         <div class="auth-field">
           <label>Username</label>
@@ -491,10 +520,24 @@
     <div class="grid" id="grid"></div>
   </main>
 
-  <footer>Game Hub — built for easy expansion</footer>
+  <footer>Game Hub — built for easy expansion · gamepad supported on this page and select games</footer>
 </div>
 
 <script>
+  /* ============================================================
+     👉 GOOGLE SIGN-IN SETUP
+     1. Go to https://console.cloud.google.com/apis/credentials
+     2. Create an OAuth 2.0 Client ID of type "Web application"
+     3. Under "Authorized JavaScript origins" add your Netlify URL,
+        e.g. https://your-site-name.netlify.app
+     4. Paste the Client ID below AND set it as the GOOGLE_CLIENT_ID
+        environment variable in Netlify (Site configuration >
+        Environment variables) — both places need it.
+     Leave the placeholder in place and the Google button just won't
+     appear; everything else keeps working with username + password.
+     ============================================================ */
+  const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+
   /* ============================================================
      👉 ADD GAMES HERE.
      Each entry needs:
@@ -510,18 +553,20 @@
      ============================================================ */
 
   const GAMES = [
-    { name: "Snake",        file: "snake.html",        icon: "./games/icons/snake.png", tag: "Arcade" },
-    { name: "Tetris",       file: "tetris.html",       icon: "./games/icons/tetris.png", tag: "Puzzle" },
-    { name: "2048",         file: "2048.html",         icon: "./games/icons/2048.png", tag: "Puzzle" },
+    { name: "Snake",        file: "snake.html",        icon: "🐍", tag: "Arcade" },
+    { name: "Tetris",       file: "tetris.html",       icon: "🧩", tag: "Puzzle" },
+    { name: "2048",         file: "2048.html",         icon: "🔢", tag: "Puzzle" },
     { name: "Pong",         file: "pong.html",         icon: "🏓", tag: "Classic" },
     { name: "Memory Match", file: "memory-match.html", icon: "🧠", tag: "Casual" },
-    { name: "Space Invaders", file: "space-invaders.html", icon: "./games/icons/space-invaders.png", tag: "Shooter" },
+    { name: "Space Invaders", file: "space-invaders.html", icon: "👾", tag: "Shooter" },
+    { name: "Breakout",     file: "breakout.html",     icon: "🧱", tag: "Arcade" },
   ];
 
   const GAMES_DIR = "games/"; // change if your games live elsewhere
 
   const grid = document.getElementById("grid");
   const search = document.getElementById("search");
+  let gpFocusIndex = 0;
 
   function playIconSVG(){
     return '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
@@ -564,6 +609,9 @@
       `;
       grid.appendChild(a);
     });
+
+    gpFocusIndex = 0;
+    updateGpFocus();
   }
 
   search.addEventListener("input", () => {
@@ -573,6 +621,79 @@
   });
 
   render(GAMES);
+
+  /* ============================= GAMEPAD SUPPORT ============================= */
+  const GamepadNav = (function(){
+    let padIndex = null;
+    const prevButtons = {};
+    const DEADZONE = 0.5;
+    window.addEventListener('gamepadconnected', e=>{ padIndex = e.gamepad.index; });
+    window.addEventListener('gamepaddisconnected', e=>{ if(padIndex===e.gamepad.index) padIndex=null; });
+    function poll(){
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      if(padIndex===null){
+        for(const p of pads){ if(p){ padIndex = p.index; break; } }
+      }
+      return padIndex!==null ? pads[padIndex] : null;
+    }
+    function justPressed(gp, i){
+      const now = !!(gp.buttons[i] && gp.buttons[i].pressed);
+      const was = !!prevButtons[i];
+      prevButtons[i] = now;
+      return now && !was;
+    }
+    function justAxis(key, value){
+      const now = value > DEADZONE ? 1 : value < -DEADZONE ? -1 : 0;
+      const was = prevButtons[key] || 0;
+      prevButtons[key] = now;
+      return now !== 0 && now !== was ? now : 0;
+    }
+    return { poll, justPressed, justAxis };
+  })();
+
+  function currentCards(){
+    return Array.from(grid.querySelectorAll('.card'));
+  }
+
+  function gridColumnCount(){
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean);
+    return Math.max(1, cols.length);
+  }
+
+  function updateGpFocus(){
+    const cards = currentCards();
+    cards.forEach((c,i)=> c.classList.toggle('gp-focused', i===gpFocusIndex));
+    if(cards[gpFocusIndex]){
+      cards[gpFocusIndex].scrollIntoView({ block:'nearest', behavior:'smooth' });
+    }
+  }
+
+  function pollGamepadNav(){
+    const gp = GamepadNav.poll();
+    if(!gp){ requestAnimationFrame(pollGamepadNav); return; }
+    const cards = currentCards();
+    if(cards.length){
+      const cols = gridColumnCount();
+      const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
+      const axisY = GamepadNav.justAxis('y', gp.axes[1]||0);
+      const left = GamepadNav.justPressed(gp, 14) || axisX < 0;
+      const right = GamepadNav.justPressed(gp, 15) || axisX > 0;
+      const up = GamepadNav.justPressed(gp, 12) || axisY < 0;
+      const down = GamepadNav.justPressed(gp, 13) || axisY > 0;
+      let moved = false;
+      if(left && gpFocusIndex % cols > 0){ gpFocusIndex--; moved = true; }
+      if(right && gpFocusIndex % cols < cols-1 && gpFocusIndex+1 < cards.length){ gpFocusIndex++; moved = true; }
+      if(up && gpFocusIndex - cols >= 0){ gpFocusIndex -= cols; moved = true; }
+      if(down && gpFocusIndex + cols < cards.length){ gpFocusIndex += cols; moved = true; }
+      if(moved) updateGpFocus();
+      if(GamepadNav.justPressed(gp, 0)){ // A
+        const card = cards[gpFocusIndex];
+        if(card) window.location.href = card.getAttribute('href');
+      }
+    }
+    requestAnimationFrame(pollGamepadNav);
+  }
+  requestAnimationFrame(pollGamepadNav);
 
   /* ============================= ACCOUNTS ============================= */
   const AuthAPI = {
@@ -697,8 +818,7 @@
     } catch(err){ alert(err.message); }
   });
 
-  document.getElementById('pmLogout').addEventListener('click', async ()=>{
-    try{ await AuthAPI.call('/api/logout', 'POST'); } catch{}
+  document.getElementById('pmLogout').addEventListener('click', ()=>{
     AuthAPI.setToken(null);
     currentProfile = null;
     renderAuthArea();
@@ -734,6 +854,33 @@
       AuthAPI.setToken(null);
     }
   })();
+
+  /* ---- Google Sign-In ---- */
+  async function handleGoogleCredential(response){
+    authError.textContent = '';
+    try{
+      const data = await AuthAPI.call('/api/google-auth', 'POST', { credential: response.credential });
+      AuthAPI.setToken(data.token);
+      currentProfile = data.profile;
+      renderAuthArea();
+      closeAuthModal();
+    } catch(err){
+      authError.textContent = err.message;
+    }
+  }
+
+  function initGoogleButton(){
+    const configured = GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith('YOUR_GOOGLE_CLIENT_ID');
+    const container = document.getElementById('googleBtnContainer');
+    if (!configured || !window.google || !window.google.accounts){
+      container.style.display = 'none';
+      document.querySelector('.auth-divider').style.display = 'none';
+      return;
+    }
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+    google.accounts.id.renderButton(container, { theme: 'filled_black', size: 'large', shape: 'pill', width: 280 });
+  }
+  window.addEventListener('load', ()=> setTimeout(initGoogleButton, 300));
 </script>
 
 </body>

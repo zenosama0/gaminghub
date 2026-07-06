@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Pong — a quiet rally back and forth</title>
+<title>Aurora Breakout — a quiet chain of small clears</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -77,18 +77,9 @@
   .stat-label{ font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:4px; }
   .stat-value{ font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:var(--moon);letter-spacing:0.5px; }
   .stat-value.small{font-size:18px;}
-  .mode-row{ display:flex; gap:8px; flex-wrap:wrap; }
-  .mode-btn{
-    font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.3px;
-    text-transform:uppercase;background:var(--panel-strong);color:var(--text-dim);
-    border:1px solid var(--line);border-radius:16px;padding:6px 12px;cursor:pointer;
-    transition:transform .15s ease, background .15s ease, color .15s ease;
-  }
-  .mode-btn:hover{ background:rgba(255,255,255,0.12); }
-  .mode-btn.active{
-    background:linear-gradient(135deg, var(--teal), var(--lavender));
-    color:#10112a; border-color:transparent;
-  }
+  .lives-row{display:flex;gap:6px;}
+  .life-dot{width:12px;height:12px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px rgba(127,231,196,0.6);}
+  .life-dot.spent{background:rgba(255,255,255,0.12);box-shadow:none;}
   .hint-block{margin-top:auto;font-size:11px;color:var(--text-dimmer);line-height:1.5;}
   .hint-block kbd{
     background:var(--panel-strong);border:1px solid var(--line);border-radius:5px;
@@ -134,16 +125,15 @@
   .toast.show{opacity:1;transform:translate(-50%,0);}
 
   #mobileControls{
-    display:none;flex:0 0 auto;
+    display:none;flex:0 0 auto;width:100%;
     padding:8px 18px calc(10px + env(safe-area-inset-bottom));
-    justify-content:space-between;align-items:center;
-    gap:10px;
+    justify-content:center;align-items:center;gap:10px;
+    box-sizing:border-box;
   }
   .touch-pad{
-    flex:1;height:64px;border-radius:16px;background:var(--panel-strong);
+    flex:1;max-width:160px;height:60px;border-radius:16px;background:var(--panel-strong);
     border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
-    font-size:12px;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-dim);
-    user-select:none;
+    font-size:20px;color:var(--text-dim);user-select:none;
   }
   .touch-pad:active{background:rgba(255,255,255,0.14);}
 
@@ -196,7 +186,7 @@
   }
   @media (max-height: 720px) and (pointer:coarse){
     .board-wrap{padding:4px;}
-    .touch-pad{height:52px;}
+    .touch-pad{height:50px;}
     #mobileControls{padding:5px 12px calc(6px + env(safe-area-inset-bottom));}
     .panel-col{padding:6px 10px;}
     .stat-value{font-size:20px;}
@@ -213,8 +203,8 @@
 <div id="app">
   <header>
     <div class="brand">
-      <div class="title">Aurora <em>Pong</em></div>
-      <div class="subtitle">a quiet rally back and forth</div>
+      <div class="title">Aurora <em>Breakout</em></div>
+      <div class="subtitle">a quiet chain of small clears</div>
     </div>
     <div class="iconbar">
       <a class="icon-btn" href="../index.html" title="Back to Game Hub">⌂</a>
@@ -228,20 +218,20 @@
   <main id="gameArea">
     <div class="panel panel-col left">
       <div>
-        <div class="stat-label">You</div>
+        <div class="stat-label">Score</div>
         <div class="stat-value" id="scoreVal">0</div>
       </div>
       <div>
-        <div class="stat-label">Best rally</div>
+        <div class="stat-label">High score</div>
         <div class="stat-value small" id="highScoreVal">0</div>
       </div>
       <div>
-        <div class="stat-label">Opponent</div>
-        <div class="stat-value small" id="oppScoreVal">0</div>
+        <div class="stat-label">Lives</div>
+        <div class="lives-row" id="livesRow"></div>
       </div>
       <div class="hint-block">
-        <div style="margin-bottom:6px;"><kbd>↑ ↓</kbd> or <kbd>W S</kbd> move</div>
-        <div style="margin-bottom:6px;">Drag on the board on mobile</div>
+        <div style="margin-bottom:6px;"><kbd>← →</kbd> or <kbd>A D</kbd> move</div>
+        <div style="margin-bottom:6px;"><kbd>space</kbd> launch</div>
         <div><kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute</div>
       </div>
     </div>
@@ -252,60 +242,56 @@
 
       <div class="overlay visible" id="overlayStart">
         <h2>Ready when you are</h2>
-        <p>A calm little rally — first to the target score, at whatever pace suits you.</p>
-        <div class="mode-row" id="modeRow">
-          <button class="mode-btn" data-mode="calm">Calm</button>
-          <button class="mode-btn active" data-mode="steady">Steady</button>
-          <button class="mode-btn" data-mode="swift">Swift</button>
-        </div>
+        <p>A calm little wall of bricks, one gentle clear at a time.</p>
         <button class="btn" id="btnStart">Begin</button>
       </div>
 
       <div class="overlay" id="overlayPause">
         <h2>Paused</h2>
-        <p>Breathe. The rally will wait.</p>
+        <p>Breathe. The wall will wait.</p>
         <button class="btn" id="btnResume">Resume</button>
       </div>
 
       <div class="overlay" id="overlayGameOver">
         <h2 id="overTitle">Settled</h2>
-        <p id="finalScoreText">You 0 — 0 Opponent</p>
+        <p id="finalScoreText">Score: 0</p>
         <button class="btn" id="btnRestart">Play again</button>
       </div>
     </div>
 
     <div class="panel panel-col right">
       <div>
-        <div class="stat-label">Target score</div>
-        <div class="stat-value" id="targetVal">7</div>
+        <div class="stat-label">Level</div>
+        <div class="stat-value" id="levelVal">1</div>
       </div>
       <div>
-        <div class="stat-label">Longest rally</div>
-        <div class="stat-value small" id="rallyVal">0</div>
+        <div class="stat-label">Bricks left</div>
+        <div class="stat-value small" id="remainVal">0</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>A gentle AI opponent meets the ball at a steady pace — quick enough to keep things interesting, calm enough to stay relaxing.</div>
+        <div>Clear every brick and the next wall begins, a touch quicker each time. Miss the ball and you'll get another go — three tries per round.</div>
       </div>
     </div>
   </main>
 
   <div id="mobileControls">
-    <div class="touch-pad" id="padUp">▲ up</div>
-    <div class="touch-pad" id="padDown">▼ down</div>
+    <div class="touch-pad" id="padLeft">◀</div>
+    <div class="touch-pad" id="padLaunch">launch</div>
+    <div class="touch-pad" id="padRight">▶</div>
   </div>
 </div>
 
 <div class="modal-back" id="infoModalBack">
   <div class="modal">
     <h3>How to play</h3>
-    <div class="row"><span class="k">Move</span><span class="v">Arrow keys / W S / drag on mobile / gamepad</span></div>
-    <div class="row"><span class="k">Goal</span><span class="v">First to the target score wins the rally</span></div>
-    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the centre mobile button</span></div>
+    <div class="row"><span class="k">Move</span><span class="v">Arrow keys / A D / drag / gamepad</span></div>
+    <div class="row"><span class="k">Launch</span><span class="v">Space / tap launch / gamepad button</span></div>
+    <div class="row"><span class="k">Goal</span><span class="v">Clear every brick before running out of lives</span></div>
+    <div class="row"><span class="k">Pause</span><span class="v">P or Esc</span></div>
     <h3 style="margin-top:20px;">Features</h3>
-    <div class="row"><span class="k">Three paces</span><span class="v">Calm, Steady, Swift</span></div>
-    <div class="row"><span class="k">Gamepad support</span><span class="v">left stick / d-pad, A to start, Start to pause</span></div>
-    <div class="row"><span class="k">Soft glow trail</span><span class="v">a calm visual signature</span></div>
-    <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rallies sound alike</span></div>
+    <div class="row"><span class="k">Gentle difficulty ramp</span><span class="v">levels ease in gradually</span></div>
+    <div class="row"><span class="k">Soft glow trails</span><span class="v">a calm visual signature</span></div>
+    <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
 </div>
@@ -331,9 +317,11 @@
 (function(){
 "use strict";
 
-const BOARD_W = 400, BOARD_H = 300;
-const PADDLE_W = 8, PADDLE_H = 56;
-const BALL_R = 5;
+const BOARD_W = 360, BOARD_H = 420;
+const PADDLE_W = 64, PADDLE_H = 12, PADDLE_Y = BOARD_H - 26;
+const BALL_R = 6;
+const BRICK_ROWS = 5, BRICK_COLS = 8;
+const BRICK_GAP = 5, BRICK_TOP = 40, BRICK_SIDE = 10;
 
 /* ============================= AUDIO ENGINE ============================= */
 const Audio_ = (function(){
@@ -456,19 +444,28 @@ const Audio_ = (function(){
   let playBellPublic = (f,t,v)=>{ ensureCtx(); playBell(f,t,v); };
 
   const SFX = {
+    wallHit(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 300, 0.05, 'sine', 0.04); },
     paddleHit(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 420, 0.08, 'triangle', 0.06, 520); },
-    wallHit(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 260, 0.06, 'sine', 0.04); },
-    score(win){
+    brickHit(combo){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      const notes = win ? [523.25,659.25,783.99] : [349.23,293.66];
-      notes.forEach((f,i)=> playBellPublic(f, t+i*0.09, 0.08));
+      const base = 392 + Math.min(combo,10)*24;
+      playBellPublic(base, t, 0.08);
     },
-    matchEnd(won){
+    loseLife(){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      const notes = won ? [523.25,659.25,783.99,1046.5] : [440,392,349.23,293.66];
-      notes.forEach((f,i)=> tone(t+i*0.16, f, 0.45, 'sine', 0.07));
+      [280,220,160].forEach((f,i)=> tone(t+i*0.09, f, 0.28, 'sine', 0.07));
+    },
+    levelClear(){
+      if(!sfxOn||!ctx) return;
+      const t = ctx.currentTime;
+      [392.00,523.25,659.25,880].forEach((f,i)=> playBellPublic(f, t+i*0.09, 0.09));
+    },
+    gameover(){
+      if(!sfxOn||!ctx) return;
+      const t = ctx.currentTime;
+      [440,392,349.23,293.66].forEach((f,i)=> tone(t+i*0.18, f, 0.5, 'sine', 0.06));
     },
     ui(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 600, 0.05, 'sine', 0.04); },
     pause(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 300, 0.09, 'triangle', 0.05, 220); }
@@ -486,7 +483,7 @@ const Audio_ = (function(){
 
 /* ============================= CLOUD SYNC (optional) ============================= */
 const CloudSync = (function(){
-  const GAME_ID = 'pong';
+  const GAME_ID = 'breakout';
   function token(){ return localStorage.getItem('gh_token'); }
   async function pull(){
     const t = token(); if(!t) return null;
@@ -522,7 +519,7 @@ const GamepadNav = (function(){
     try{
       pads = navigator.getGamepads();
     } catch {
-      blocked = true; // e.g. blocked by a Permissions-Policy header when embedded
+      blocked = true;
       return null;
     }
     if(padIndex===null){
@@ -554,12 +551,12 @@ window.addEventListener('resize', resizeBg);
 resizeBg();
 
 const stars = Array.from({length:80}, ()=>({
-  x:Math.random(), y:Math.random()*0.7, r:Math.random()*1.4+0.3, phase:Math.random()*Math.PI*2, speed:0.3+Math.random()*0.5
+  x:Math.random(), y:Math.random(), r:Math.random()*1.4+0.3, phase:Math.random()*Math.PI*2, speed:0.3+Math.random()*0.5
 }));
 const waves = [
-  {amp:26, len:0.9, speed:0.06, color:'rgba(127,231,196,0.10)', yBase:0.6},
-  {amp:34, len:0.6, speed:-0.045, color:'rgba(185,163,227,0.10)', yBase:0.7},
-  {amp:20, len:1.3, speed:0.03, color:'rgba(242,167,176,0.07)', yBase:0.81}
+  {amp:26, len:0.9, speed:0.06, color:'rgba(127,231,196,0.10)', yBase:0.62},
+  {amp:34, len:0.6, speed:-0.045, color:'rgba(185,163,227,0.10)', yBase:0.72},
+  {amp:20, len:1.3, speed:0.03, color:'rgba(242,167,176,0.07)', yBase:0.83}
 ];
 let bgTime = 0;
 function drawBg(dt){
@@ -572,7 +569,7 @@ function drawBg(dt){
   bgCtx.fillStyle = grad;
   bgCtx.fillRect(0,0,bgW,bgH);
 
-  const mx = bgW*0.84, my = bgH*0.16, mr = Math.min(bgW,bgH)*0.05;
+  const mx = bgW*0.84, my = bgH*0.14, mr = Math.min(bgW,bgH)*0.05;
   const moonGlow = bgCtx.createRadialGradient(mx,my,0,mx,my,mr*6);
   moonGlow.addColorStop(0,'rgba(245,239,224,0.16)');
   moonGlow.addColorStop(1,'rgba(245,239,224,0)');
@@ -584,7 +581,7 @@ function drawBg(dt){
 
   stars.forEach(s=>{
     const tw = 0.5 + 0.5*Math.sin(bgTime*s.speed + s.phase);
-    bgCtx.globalAlpha = 0.15 + tw*0.5;
+    bgCtx.globalAlpha = 0.12 + tw*0.45;
     bgCtx.fillStyle = '#F5EFE0';
     bgCtx.beginPath();
     bgCtx.arc(s.x*bgW, s.y*bgH, s.r, 0, Math.PI*2);
@@ -626,7 +623,7 @@ function computeLayout(){
     availW -= (170*2 + 22*2);
   }
   scale = Math.min(availH/BOARD_H, availW/BOARD_W);
-  scale = Math.max(0.6, Math.min(scale, 2.2));
+  scale = Math.max(0.55, Math.min(scale, 1.8));
   const w = Math.floor(BOARD_W*scale), h = Math.floor(BOARD_H*scale);
   boardCanvas.width = w*dpr;
   boardCanvas.height = h*dpr;
@@ -638,43 +635,60 @@ window.addEventListener('resize', computeLayout);
 window.addEventListener('orientationchange', ()=>setTimeout(computeLayout, 200));
 
 /* ============================= GAME STATE ============================= */
-const MODES = {
-  calm:   { label:'Calm',   ballSpeed:150, aiSpeed:120 },
-  steady: { label:'Steady', ballSpeed:210, aiSpeed:170 },
-  swift:  { label:'Swift',  ballSpeed:280, aiSpeed:225 }
-};
-let currentMode = 'steady';
+const ROW_COLORS = ['#F2A7B0','#F2C48A','#B9A3E3','#9FE0B8','#8FD8E0'];
+let paddle, ball, bricks;
+let score, highScore, lives, level, gameState, waitingForLaunch, combo;
+let moveLeft=false, moveRight=false, gpLeft=false, gpRight=false;
 
-let player, opponent, ball;
-let score, oppScore, highScore, longestRally, rally, targetScore;
-let gameState;
-let moveUp=false, moveDown=false, gpUp=false, gpDown=false;
-
-function resetMatch(){
-  player = { y: BOARD_H/2 - PADDLE_H/2 };
-  opponent = { y: BOARD_H/2 - PADDLE_H/2 };
-  score = 0; oppScore = 0; rally = 0; longestRally = 0;
-  targetScore = 7;
-  spawnBall(Math.random()<0.5 ? 1 : -1);
-  updateHUD();
+function buildBricks(lvl){
+  const list = [];
+  const brickW = (BOARD_W - BRICK_SIDE*2 - BRICK_GAP*(BRICK_COLS-1)) / BRICK_COLS;
+  const brickH = 16;
+  const toughRows = Math.min(2, Math.floor((lvl-1)/2));
+  for(let r=0;r<BRICK_ROWS;r++){
+    for(let c=0;c<BRICK_COLS;c++){
+      list.push({
+        x: BRICK_SIDE + c*(brickW+BRICK_GAP),
+        y: BRICK_TOP + r*(brickH+BRICK_GAP),
+        w: brickW, h: brickH,
+        row: r,
+        hp: r < toughRows ? 2 : 1,
+        alive: true
+      });
+    }
+  }
+  return list;
 }
 
-function spawnBall(dir){
-  const speed = MODES[currentMode].ballSpeed;
-  const angle = (Math.random()*0.6 - 0.3); // radians
-  ball = {
-    x: BOARD_W/2, y: BOARD_H/2,
-    vx: Math.cos(angle)*speed*dir,
-    vy: Math.sin(angle)*speed
-  };
+function resetPaddleAndBall(){
+  paddle = { x: BOARD_W/2 - PADDLE_W/2 };
+  ball = { x: BOARD_W/2, y: PADDLE_Y - BALL_R - 2, vx: 0, vy: 0 };
+  waitingForLaunch = true;
+}
+
+function resetGame(){
+  score = 0; lives = 3; level = 1; combo = 0;
+  bricks = buildBricks(level);
+  resetPaddleAndBall();
+  updateHUD();
+  renderLives();
 }
 
 function updateHUD(){
-  document.getElementById('scoreVal').textContent = score;
-  document.getElementById('oppScoreVal').textContent = oppScore;
-  document.getElementById('highScoreVal').textContent = Math.max(longestRally, highScore);
-  document.getElementById('rallyVal').textContent = longestRally;
-  document.getElementById('targetVal').textContent = targetScore;
+  document.getElementById('scoreVal').textContent = score.toLocaleString();
+  document.getElementById('highScoreVal').textContent = Math.max(score,highScore).toLocaleString();
+  document.getElementById('levelVal').textContent = level;
+  document.getElementById('remainVal').textContent = bricks.filter(b=>b.alive).length;
+}
+
+function renderLives(){
+  const row = document.getElementById('livesRow');
+  row.innerHTML = '';
+  for(let i=0;i<3;i++){
+    const dot = document.createElement('div');
+    dot.className = 'life-dot' + (i < lives ? '' : ' spent');
+    row.appendChild(dot);
+  }
 }
 
 function showToast(text){
@@ -685,86 +699,99 @@ function showToast(text){
   t._timer = setTimeout(()=>t.classList.remove('show'), 900);
 }
 
+function launchBall(){
+  if(!waitingForLaunch) return;
+  waitingForLaunch = false;
+  const speed = 210 + (level-1)*14;
+  const angle = -Math.PI/2 + (Math.random()*0.6 - 0.3);
+  ball.vx = Math.cos(angle)*speed;
+  ball.vy = Math.sin(angle)*speed;
+}
+
 /* ============================= UPDATE ============================= */
 function updateGame(dt){
   const sec = dt/1000;
-  const speed = 260;
-  if(moveUp||gpUp) player.y -= speed*sec;
-  if(moveDown||gpDown) player.y += speed*sec;
-  player.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, player.y));
+  const speed = 300;
+  const left = moveLeft||gpLeft, right = moveRight||gpRight;
+  if(left) paddle.x -= speed*sec;
+  if(right) paddle.x += speed*sec;
+  paddle.x = Math.max(4, Math.min(BOARD_W-PADDLE_W-4, paddle.x));
 
-  // simple AI: track ball with capped speed, slight easing
-  const aiSpeed = MODES[currentMode].aiSpeed;
-  const targetY = ball.y - PADDLE_H/2;
-  const diff = targetY - opponent.y;
-  const maxStep = aiSpeed*sec;
-  opponent.y += Math.max(-maxStep, Math.min(maxStep, diff));
-  opponent.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, opponent.y));
+  if(waitingForLaunch){
+    ball.x = paddle.x + PADDLE_W/2;
+    ball.y = PADDLE_Y - BALL_R - 2;
+    return;
+  }
 
   ball.x += ball.vx*sec;
   ball.y += ball.vy*sec;
 
+  if(ball.x - BALL_R < 0){ ball.x = BALL_R; ball.vx *= -1; Audio_.sfx.wallHit(); }
+  if(ball.x + BALL_R > BOARD_W){ ball.x = BOARD_W-BALL_R; ball.vx *= -1; Audio_.sfx.wallHit(); }
   if(ball.y - BALL_R < 0){ ball.y = BALL_R; ball.vy *= -1; Audio_.sfx.wallHit(); }
-  if(ball.y + BALL_R > BOARD_H){ ball.y = BOARD_H-BALL_R; ball.vy *= -1; Audio_.sfx.wallHit(); }
 
-  // player paddle (left side, x = 16)
-  const playerX = 16;
-  if(ball.vx < 0 && ball.x - BALL_R < playerX + PADDLE_W && ball.x - BALL_R > playerX - 10 &&
-     ball.y > player.y - BALL_R && ball.y < player.y + PADDLE_H + BALL_R){
-    ball.x = playerX + PADDLE_W + BALL_R;
-    const rel = (ball.y - (player.y+PADDLE_H/2)) / (PADDLE_H/2);
-    const speedNow = Math.hypot(ball.vx, ball.vy) * 1.04;
-    ball.vx = Math.abs(Math.cos(rel*0.5))*speedNow;
-    ball.vy = Math.sin(rel*0.9)*speedNow;
-    rally++;
-    longestRally = Math.max(longestRally, rally);
+  // paddle collision
+  if(ball.vy > 0 && ball.y + BALL_R > PADDLE_Y && ball.y + BALL_R < PADDLE_Y + PADDLE_H + 12 &&
+     ball.x > paddle.x - BALL_R && ball.x < paddle.x + PADDLE_W + BALL_R){
+    ball.y = PADDLE_Y - BALL_R;
+    const rel = (ball.x - (paddle.x+PADDLE_W/2)) / (PADDLE_W/2);
+    const speedNow = Math.min(420, Math.hypot(ball.vx, ball.vy) * 1.01);
+    ball.vx = Math.sin(rel*1.2)*speedNow;
+    ball.vy = -Math.abs(Math.cos(rel*0.5))*speedNow;
+    combo = 0;
     Audio_.sfx.paddleHit();
-    updateHUD();
   }
 
-  // opponent paddle (right side)
-  const oppX = BOARD_W - 16 - PADDLE_W;
-  if(ball.vx > 0 && ball.x + BALL_R > oppX && ball.x + BALL_R < oppX + PADDLE_W + 10 &&
-     ball.y > opponent.y - BALL_R && ball.y < opponent.y + PADDLE_H + BALL_R){
-    ball.x = oppX - BALL_R;
-    const rel = (ball.y - (opponent.y+PADDLE_H/2)) / (PADDLE_H/2);
-    const speedNow = Math.hypot(ball.vx, ball.vy) * 1.03;
-    ball.vx = -Math.abs(Math.cos(rel*0.5))*speedNow;
-    ball.vy = Math.sin(rel*0.9)*speedNow;
-    rally++;
-    longestRally = Math.max(longestRally, rally);
-    Audio_.sfx.paddleHit();
-    updateHUD();
+  // brick collisions
+  for(const b of bricks){
+    if(!b.alive) continue;
+    if(ball.x+BALL_R > b.x && ball.x-BALL_R < b.x+b.w && ball.y+BALL_R > b.y && ball.y-BALL_R < b.y+b.h){
+      b.hp--;
+      if(b.hp<=0) b.alive = false;
+      // determine bounce side by comparing penetration depths
+      const overlapX = Math.min(ball.x+BALL_R-b.x, b.x+b.w-(ball.x-BALL_R));
+      const overlapY = Math.min(ball.y+BALL_R-b.y, b.y+b.h-(ball.y-BALL_R));
+      if(overlapX < overlapY) ball.vx *= -1; else ball.vy *= -1;
+      combo++;
+      score += 10 * (b.row+1) * Math.max(1, Math.floor(combo/3));
+      Audio_.sfx.brickHit(combo);
+      updateHUD();
+      break;
+    }
   }
 
-  // scoring
-  if(ball.x < -20){
-    oppScore++;
-    rally = 0;
-    Audio_.sfx.score(false);
-    showToast('Opponent scores');
+  // ball falls below paddle
+  if(ball.y - BALL_R > BOARD_H){
+    lives--;
+    renderLives();
+    combo = 0;
+    Audio_.sfx.loseLife();
+    if(lives<=0){ return endGame(); }
+    showToast('Steady now');
+    resetPaddleAndBall();
+  }
+
+  // level clear
+  if(bricks.every(b=>!b.alive)){
+    level++;
+    bricks = buildBricks(level);
+    combo = 0;
+    Audio_.sfx.levelClear();
+    showToast('Level ' + level);
+    resetPaddleAndBall();
     updateHUD();
-    if(oppScore >= targetScore){ return endMatch(false); }
-    spawnBall(1);
-  } else if(ball.x > BOARD_W+20){
-    score++;
-    rally = 0;
-    Audio_.sfx.score(true);
-    showToast('You score!');
-    updateHUD();
-    if(score >= targetScore){ return endMatch(true); }
-    spawnBall(-1);
   }
 }
 
-function endMatch(won){
+function endGame(){
   gameState = 'over';
-  Audio_.sfx.matchEnd(won);
-  highScore = Math.max(highScore, longestRally);
-  localStorage.setItem('apong_highscore', String(highScore));
+  Audio_.sfx.gameover();
+  highScore = Math.max(highScore, score);
+  localStorage.setItem('abrk_highscore', String(highScore));
   CloudSync.push(highScore);
-  document.getElementById('overTitle').textContent = won ? 'You took the rally' : 'Settled';
-  document.getElementById('finalScoreText').textContent = `You ${score} — ${oppScore} Opponent`;
+  document.getElementById('overTitle').textContent = 'Settled';
+  document.getElementById('finalScoreText').textContent = 'Score: ' + score.toLocaleString() +
+    (score>=highScore && score>0 ? '  •  new high score' : '');
   document.getElementById('overlayGameOver').classList.add('visible');
   updateHUD();
 }
@@ -783,45 +810,59 @@ function roundRect(ctx,x,y,w,h,r){
 function drawBoard(){
   boardCtx.clearRect(0,0,BOARD_W,BOARD_H);
 
-  // center dashed line
-  boardCtx.strokeStyle = 'rgba(255,255,255,0.08)';
-  boardCtx.lineWidth = 2;
-  boardCtx.setLineDash([6,10]);
-  boardCtx.beginPath();
-  boardCtx.moveTo(BOARD_W/2, 0); boardCtx.lineTo(BOARD_W/2, BOARD_H);
-  boardCtx.stroke();
-  boardCtx.setLineDash([]);
+  bricks.forEach(b=>{
+    if(!b.alive) return;
+    const color = ROW_COLORS[b.row % ROW_COLORS.length];
+    boardCtx.save();
+    boardCtx.globalAlpha = b.hp>1 ? 1 : 0.85;
+    boardCtx.shadowColor = color;
+    boardCtx.shadowBlur = 6;
+    boardCtx.fillStyle = color;
+    roundRect(boardCtx, b.x, b.y, b.w, b.h, 4);
+    boardCtx.fill();
+    if(b.hp>1){
+      boardCtx.strokeStyle = 'rgba(16,17,42,0.4)';
+      boardCtx.lineWidth = 2;
+      roundRect(boardCtx, b.x+2, b.y+2, b.w-4, b.h-4, 3);
+      boardCtx.stroke();
+    }
+    boardCtx.restore();
+  });
 
-  // paddles
+  // paddle
   boardCtx.save();
   boardCtx.shadowColor = '#7FE7C4';
   boardCtx.shadowBlur = 10;
-  boardCtx.fillStyle = '#7FE7C4';
-  roundRect(boardCtx, 16, player.y, PADDLE_W, PADDLE_H, 4);
-  boardCtx.fill();
-  boardCtx.restore();
-
-  boardCtx.save();
-  boardCtx.shadowColor = '#B9A3E3';
-  boardCtx.shadowBlur = 10;
-  boardCtx.fillStyle = '#B9A3E3';
-  roundRect(boardCtx, BOARD_W-16-PADDLE_W, opponent.y, PADDLE_W, PADDLE_H, 4);
+  const grad = boardCtx.createLinearGradient(paddle.x, PADDLE_Y, paddle.x, PADDLE_Y+PADDLE_H);
+  grad.addColorStop(0, '#c9f3e7'); grad.addColorStop(1, '#7FE7C4');
+  boardCtx.fillStyle = grad;
+  roundRect(boardCtx, paddle.x, PADDLE_Y, PADDLE_W, PADDLE_H, 6);
   boardCtx.fill();
   boardCtx.restore();
 
   // ball
   boardCtx.save();
   boardCtx.shadowColor = '#F5EFE0';
-  boardCtx.shadowBlur = 12;
+  boardCtx.shadowBlur = 10;
   boardCtx.fillStyle = '#F5EFE0';
   boardCtx.beginPath();
   boardCtx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
   boardCtx.fill();
   boardCtx.restore();
+
+  if(waitingForLaunch && gameState==='running'){
+    boardCtx.save();
+    boardCtx.fillStyle = 'rgba(245,239,224,0.5)';
+    boardCtx.font = '12px Manrope, sans-serif';
+    boardCtx.textAlign = 'center';
+    boardCtx.fillText('press launch', BOARD_W/2, PADDLE_Y - 20);
+    boardCtx.restore();
+  }
 }
 
 /* ============================= GAME LOOP ============================= */
 let lastTime = 0;
+let gpLaunchWasPressed = false;
 function loop(t){
   const dt = Math.min(50, t-lastTime); lastTime = t;
   drawBg(dt/1000);
@@ -833,31 +874,33 @@ function loop(t){
 
 function pollGamepad(){
   const gp = GamepadNav.poll();
-  if(!gp){ gpUp=false; gpDown=false; return; }
-  const axisY = gp.axes[1] || 0;
-  gpUp = GamepadNav.held(gp, 12) || axisY < -GamepadNav.DEADZONE;
-  gpDown = GamepadNav.held(gp, 13) || axisY > GamepadNav.DEADZONE;
+  if(!gp){ gpLeft=false; gpRight=false; return; }
+  const axisX = gp.axes[0] || 0;
+  gpLeft = GamepadNav.held(gp, 14) || axisX < -GamepadNav.DEADZONE;
+  gpRight = GamepadNav.held(gp, 15) || axisX > GamepadNav.DEADZONE;
   if(GamepadNav.justPressed(gp, 9)) togglePause(); // Start/Menu
   if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 1)){ // A / B
     if(gameState==='idle' || gameState==='over') startGame();
+    else if(gameState==='running') launchBall();
     else if(gameState==='paused') togglePause();
   }
 }
 
 /* ============================= INPUT ============================= */
 window.addEventListener('keydown', e=>{
-  if(['ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+  if(['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
   switch(e.key){
-    case 'ArrowUp': case 'w': case 'W': moveUp = true; break;
-    case 'ArrowDown': case 's': case 'S': moveDown = true; break;
+    case 'ArrowLeft': case 'a': case 'A': moveLeft = true; break;
+    case 'ArrowRight': case 'd': case 'D': moveRight = true; break;
+    case ' ': launchBall(); break;
     case 'p': case 'P': case 'Escape': togglePause(); break;
     case 'm': case 'M': toggleMusicQuick(); break;
   }
 });
 window.addEventListener('keyup', e=>{
-  if(e.key==='ArrowUp'||e.key==='w'||e.key==='W') moveUp=false;
-  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') moveDown=false;
+  if(e.key==='ArrowLeft' || e.key==='a' || e.key==='A') moveLeft = false;
+  if(e.key==='ArrowRight' || e.key==='d' || e.key==='D') moveRight = false;
 });
 
 function toggleMusicQuick(){
@@ -865,7 +908,7 @@ function toggleMusicQuick(){
   sw.classList.toggle('on');
   const on = sw.classList.contains('on');
   Audio_.setMusicOn(on);
-  localStorage.setItem('apong_music_on', on?'1':'0');
+  localStorage.setItem('abrk_music_on', on?'1':'0');
 }
 
 function bindHold(el, onDown, onUp){
@@ -875,21 +918,24 @@ function bindHold(el, onDown, onUp){
   el.addEventListener('mouseup', ()=>onUp&&onUp());
   el.addEventListener('mouseleave', ()=>onUp&&onUp());
 }
-bindHold(document.getElementById('padUp'), ()=>moveUp=true, ()=>moveUp=false);
-bindHold(document.getElementById('padDown'), ()=>moveDown=true, ()=>moveDown=false);
+bindHold(document.getElementById('padLeft'), ()=>moveLeft=true, ()=>moveLeft=false);
+bindHold(document.getElementById('padRight'), ()=>moveRight=true, ()=>moveRight=false);
+document.getElementById('padLaunch').addEventListener('touchstart', e=>{ e.preventDefault(); launchBall(); }, {passive:false});
+document.getElementById('padLaunch').addEventListener('click', launchBall);
 
-/* drag to move paddle directly */
-let dragging=false;
+let touching=false, touchLastX=0;
 const boardWrap = document.querySelector('.board-wrap');
-boardWrap.addEventListener('touchstart', e=>{ dragging=true; }, {passive:true});
-boardWrap.addEventListener('touchmove', e=>{
-  if(!dragging || gameState!=='running') return;
-  const rect = boardCanvas.getBoundingClientRect();
-  const t = e.touches[0];
-  const y = (t.clientY - rect.top) / scale;
-  player.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, y - PADDLE_H/2));
+boardWrap.addEventListener('touchstart', e=>{
+  const t = e.touches[0]; touchLastX = t.clientX; touching=true;
 }, {passive:true});
-boardWrap.addEventListener('touchend', ()=>{ dragging=false; }, {passive:true});
+boardWrap.addEventListener('touchmove', e=>{
+  if(!touching || gameState!=='running') return;
+  const t = e.touches[0];
+  const dx = (t.clientX - touchLastX) / scale;
+  paddle.x = Math.max(4, Math.min(BOARD_W-PADDLE_W-4, paddle.x + dx));
+  touchLastX = t.clientX;
+}, {passive:true});
+boardWrap.addEventListener('touchend', ()=>{ touching=false; }, {passive:true});
 
 /* ============================= UI WIRING ============================= */
 function togglePause(){
@@ -928,50 +974,41 @@ document.getElementById('toggleMusic').addEventListener('click', e=>{
   e.currentTarget.classList.toggle('on');
   const on = e.currentTarget.classList.contains('on');
   Audio_.setMusicOn(on);
-  localStorage.setItem('apong_music_on', on?'1':'0');
+  localStorage.setItem('abrk_music_on', on?'1':'0');
 });
 document.getElementById('toggleSfx').addEventListener('click', e=>{
   e.currentTarget.classList.toggle('on');
   const on = e.currentTarget.classList.contains('on');
   Audio_.setSfxOn(on);
-  localStorage.setItem('apong_sfx_on', on?'1':'0');
+  localStorage.setItem('abrk_sfx_on', on?'1':'0');
 });
 document.getElementById('musicVol').addEventListener('input', e=>{
   const v = e.target.value/100;
   Audio_.setMusicVol(v);
   document.getElementById('musicVolLabel').textContent = e.target.value+'%';
-  localStorage.setItem('apong_music_vol', v);
+  localStorage.setItem('abrk_music_vol', v);
 });
 document.getElementById('sfxVol').addEventListener('input', e=>{
   const v = e.target.value/100;
   Audio_.setSfxVol(v);
   document.getElementById('sfxVolLabel').textContent = e.target.value+'%';
-  localStorage.setItem('apong_sfx_vol', v);
+  localStorage.setItem('abrk_sfx_vol', v);
 });
 
 function loadAudioPrefs(){
-  const mOn = localStorage.getItem('apong_music_on');
-  const sOn = localStorage.getItem('apong_sfx_on');
-  const mVol = localStorage.getItem('apong_music_vol');
-  const sVol = localStorage.getItem('apong_sfx_vol');
+  const mOn = localStorage.getItem('abrk_music_on');
+  const sOn = localStorage.getItem('abrk_sfx_on');
+  const mVol = localStorage.getItem('abrk_music_vol');
+  const sVol = localStorage.getItem('abrk_sfx_vol');
   if(mOn!==null){ const on = mOn==='1'; document.getElementById('toggleMusic').classList.toggle('on', on); Audio_.setMusicOn(on); }
   if(sOn!==null){ const on = sOn==='1'; document.getElementById('toggleSfx').classList.toggle('on', on); Audio_.setSfxOn(on); }
   if(mVol!==null){ Audio_.setMusicVol(parseFloat(mVol)); document.getElementById('musicVol').value = Math.round(parseFloat(mVol)*100); document.getElementById('musicVolLabel').textContent = Math.round(parseFloat(mVol)*100)+'%'; }
   if(sVol!==null){ Audio_.setSfxVol(parseFloat(sVol)); document.getElementById('sfxVol').value = Math.round(parseFloat(sVol)*100); document.getElementById('sfxVolLabel').textContent = Math.round(parseFloat(sVol)*100)+'%'; }
 }
 
-document.getElementById('modeRow').addEventListener('click', e=>{
-  const btn = e.target.closest('.mode-btn');
-  if(!btn) return;
-  currentMode = btn.dataset.mode;
-  document.querySelectorAll('#modeRow .mode-btn').forEach(b=> b.classList.toggle('active', b===btn));
-  localStorage.setItem('apong_mode', currentMode);
-  Audio_.sfx.ui();
-});
-
 /* ============================= START / RESTART ============================= */
 function startGame(){
-  resetMatch();
+  resetGame();
   gameState = 'running';
   document.getElementById('overlayStart').classList.remove('visible');
   document.getElementById('overlayGameOver').classList.remove('visible');
@@ -981,15 +1018,10 @@ document.getElementById('btnStart').addEventListener('click', ()=>{ Audio_.init(
 document.getElementById('btnRestart').addEventListener('click', ()=>{ Audio_.init(); startGame(); });
 
 /* ============================= INIT ============================= */
-highScore = parseFloat(localStorage.getItem('apong_highscore')||'0');
+highScore = parseFloat(localStorage.getItem('abrk_highscore')||'0');
 gameState = 'idle';
-const savedMode = localStorage.getItem('apong_mode');
-if(savedMode && MODES[savedMode]){
-  currentMode = savedMode;
-  document.querySelectorAll('#modeRow .mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===savedMode));
-}
-resetMatch();
-document.getElementById('highScoreVal').textContent = highScore;
+resetGame();
+document.getElementById('highScoreVal').textContent = highScore.toLocaleString();
 loadAudioPrefs();
 computeLayout();
 requestAnimationFrame(loop);
@@ -997,7 +1029,7 @@ requestAnimationFrame(loop);
 CloudSync.pull().then(serverScore=>{
   if(serverScore && serverScore > highScore){
     highScore = serverScore;
-    localStorage.setItem('apong_highscore', String(highScore));
+    localStorage.setItem('abrk_highscore', String(highScore));
     updateHUD();
   }
 });

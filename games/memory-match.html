@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Pong — a quiet rally back and forth</title>
+<title>Aurora Memory — a quiet game of remembering</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -77,11 +77,11 @@
   .stat-label{ font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:4px; }
   .stat-value{ font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:var(--moon);letter-spacing:0.5px; }
   .stat-value.small{font-size:18px;}
-  .mode-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .mode-row{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
   .mode-btn{
-    font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.3px;
+    font-family:'Manrope',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:0.4px;
     text-transform:uppercase;background:var(--panel-strong);color:var(--text-dim);
-    border:1px solid var(--line);border-radius:16px;padding:6px 12px;cursor:pointer;
+    border:1px solid var(--line);border-radius:20px;padding:7px 14px;cursor:pointer;
     transition:transform .15s ease, background .15s ease, color .15s ease;
   }
   .mode-btn:hover{ background:rgba(255,255,255,0.12); }
@@ -96,20 +96,67 @@
   }
 
   .board-wrap{
-    position:relative;flex:0 0 auto;border-radius:18px;padding:10px;
+    position:relative;flex:0 0 auto;border-radius:18px;padding:14px;
     background:linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
     border:1px solid var(--line);
     box-shadow:0 30px 70px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.02) inset;
   }
   #board{
-    display:block;border-radius:10px;
-    background:radial-gradient(120% 140% at 50% -10%, rgba(185,163,227,0.10), rgba(10,11,30,0.65) 60%);
+    display:grid;
+    border-radius:10px;
   }
+  .card{
+    position:relative;
+    border-radius:10px;
+    cursor:pointer;
+    perspective:600px;
+  }
+  .card-inner{
+    position:relative; width:100%; height:100%;
+    transform-style:preserve-3d;
+    transition:transform .35s cubic-bezier(.2,.8,.2,1);
+  }
+  .card.flipped .card-inner, .card.matched .card-inner{ transform:rotateY(180deg); }
+  .card-face{
+    position:absolute; inset:0;
+    border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    backface-visibility:hidden;
+  }
+  .card-back{
+    background:linear-gradient(160deg, rgba(255,255,255,0.09), rgba(255,255,255,0.02));
+    border:1px solid var(--line);
+  }
+  .card-back::after{
+    content:'✦'; color:var(--text-dimmer); font-size:1.4em;
+  }
+  .card-front{
+    background:linear-gradient(160deg, #232552, #171833);
+    border:1px solid rgba(255,255,255,0.14);
+    transform:rotateY(180deg);
+    font-size:1.8em;
+  }
+  .card.matched .card-front{
+    background:linear-gradient(160deg, rgba(127,231,196,0.28), rgba(127,231,196,0.08));
+    border-color:rgba(127,231,196,0.4);
+  }
+  .card.gp-focused{
+    box-shadow:0 0 0 3px var(--teal), 0 0 18px rgba(127,231,196,0.5);
+    border-radius:10px;
+  }
+  .card.wrong .card-inner{ animation:shake .3s ease; }
+  @keyframes shake{
+    0%,100%{ transform:rotateY(180deg) translateX(0); }
+    25%{ transform:rotateY(180deg) translateX(-4px); }
+    75%{ transform:rotateY(180deg) translateX(4px); }
+  }
+
   .overlay{
     position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:rgba(9,10,22,0.72);border-radius:10px;backdrop-filter:blur(3px);
     opacity:0;pointer-events:none;transition:opacity .25s ease;
     flex-direction:column;gap:14px;text-align:center;padding:20px;
+    z-index:5;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
   .overlay h2{ font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon); }
@@ -130,22 +177,9 @@
     color:var(--gold);background:rgba(10,11,26,0.55);padding:5px 14px;border-radius:20px;
     opacity:0;transition:opacity .25s ease, transform .25s ease;
     pointer-events:none;white-space:nowrap;border:1px solid rgba(232,193,112,0.25);
+    z-index:6;
   }
   .toast.show{opacity:1;transform:translate(-50%,0);}
-
-  #mobileControls{
-    display:none;flex:0 0 auto;
-    padding:8px 18px calc(10px + env(safe-area-inset-bottom));
-    justify-content:space-between;align-items:center;
-    gap:10px;
-  }
-  .touch-pad{
-    flex:1;height:64px;border-radius:16px;background:var(--panel-strong);
-    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
-    font-size:12px;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-dim);
-    user-select:none;
-  }
-  .touch-pad:active{background:rgba(255,255,255,0.14);}
 
   .modal-back{
     position:fixed;inset:0;background:rgba(6,7,16,0.6);
@@ -189,15 +223,12 @@
       justify-content:space-around;align-items:center;padding:8px 12px;order:0;
     }
     .hint-block{display:none;}
-    .board-wrap{order:1;padding:6px;}
-    #mobileControls{display:flex;}
+    .board-wrap{order:1;padding:8px;}
     header{padding:8px 12px;}
     .brand .title{font-size:18px;}
   }
   @media (max-height: 720px) and (pointer:coarse){
-    .board-wrap{padding:4px;}
-    .touch-pad{height:52px;}
-    #mobileControls{padding:5px 12px calc(6px + env(safe-area-inset-bottom));}
+    .board-wrap{padding:6px;}
     .panel-col{padding:6px 10px;}
     .stat-value{font-size:20px;}
     .stat-value.small{font-size:15px;}
@@ -213,8 +244,8 @@
 <div id="app">
   <header>
     <div class="brand">
-      <div class="title">Aurora <em>Pong</em></div>
-      <div class="subtitle">a quiet rally back and forth</div>
+      <div class="title">Aurora <em>Memory</em></div>
+      <div class="subtitle">a quiet game of remembering</div>
     </div>
     <div class="iconbar">
       <a class="icon-btn" href="../index.html" title="Back to Game Hub">⌂</a>
@@ -228,84 +259,81 @@
   <main id="gameArea">
     <div class="panel panel-col left">
       <div>
-        <div class="stat-label">You</div>
-        <div class="stat-value" id="scoreVal">0</div>
+        <div class="stat-label">Moves</div>
+        <div class="stat-value" id="movesVal">0</div>
       </div>
       <div>
-        <div class="stat-label">Best rally</div>
-        <div class="stat-value small" id="highScoreVal">0</div>
-      </div>
-      <div>
-        <div class="stat-label">Opponent</div>
-        <div class="stat-value small" id="oppScoreVal">0</div>
+        <div class="stat-label">Best (fewest)</div>
+        <div class="stat-value small" id="highScoreVal">—</div>
       </div>
       <div class="hint-block">
-        <div style="margin-bottom:6px;"><kbd>↑ ↓</kbd> or <kbd>W S</kbd> move</div>
-        <div style="margin-bottom:6px;">Drag on the board on mobile</div>
+        <div style="margin-bottom:6px;">Tap two cards to reveal them</div>
+        <div style="margin-bottom:6px;">Matching pairs stay face up</div>
         <div><kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute</div>
       </div>
     </div>
 
     <div class="board-wrap">
-      <canvas id="board"></canvas>
+      <div id="board"></div>
       <div class="toast" id="toast"></div>
 
       <div class="overlay visible" id="overlayStart">
         <h2>Ready when you are</h2>
-        <p>A calm little rally — first to the target score, at whatever pace suits you.</p>
+        <p>Turn two cards at a time, and let your memory do the rest. No timer, no rush.</p>
         <div class="mode-row" id="modeRow">
-          <button class="mode-btn" data-mode="calm">Calm</button>
-          <button class="mode-btn active" data-mode="steady">Steady</button>
-          <button class="mode-btn" data-mode="swift">Swift</button>
+          <button class="mode-btn" data-mode="easy">Easy · 12</button>
+          <button class="mode-btn active" data-mode="medium">Medium · 18</button>
+          <button class="mode-btn" data-mode="hard">Hard · 24</button>
         </div>
         <button class="btn" id="btnStart">Begin</button>
       </div>
 
       <div class="overlay" id="overlayPause">
         <h2>Paused</h2>
-        <p>Breathe. The rally will wait.</p>
+        <p>Breathe. The cards will wait.</p>
         <button class="btn" id="btnResume">Resume</button>
       </div>
 
       <div class="overlay" id="overlayGameOver">
-        <h2 id="overTitle">Settled</h2>
-        <p id="finalScoreText">You 0 — 0 Opponent</p>
+        <h2>All matched</h2>
+        <p id="finalScoreText">Finished in 0 moves</p>
+        <div class="mode-row" id="modeRowOver">
+          <button class="mode-btn" data-mode="easy">Easy · 12</button>
+          <button class="mode-btn" data-mode="medium">Medium · 18</button>
+          <button class="mode-btn" data-mode="hard">Hard · 24</button>
+        </div>
         <button class="btn" id="btnRestart">Play again</button>
       </div>
     </div>
 
     <div class="panel panel-col right">
       <div>
-        <div class="stat-label">Target score</div>
-        <div class="stat-value" id="targetVal">7</div>
+        <div class="stat-label">Pairs found</div>
+        <div class="stat-value" id="pairsVal">0 / 0</div>
       </div>
       <div>
-        <div class="stat-label">Longest rally</div>
-        <div class="stat-value small" id="rallyVal">0</div>
+        <div class="stat-label">Difficulty</div>
+        <div class="stat-value small" id="diffVal">Medium</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>A gentle AI opponent meets the ball at a steady pace — quick enough to keep things interesting, calm enough to stay relaxing.</div>
+        <div>Fewer moves means a sharper memory — but there's no clock here, so take whatever pace feels good.</div>
       </div>
     </div>
   </main>
-
-  <div id="mobileControls">
-    <div class="touch-pad" id="padUp">▲ up</div>
-    <div class="touch-pad" id="padDown">▼ down</div>
-  </div>
 </div>
 
 <div class="modal-back" id="infoModalBack">
   <div class="modal">
     <h3>How to play</h3>
-    <div class="row"><span class="k">Move</span><span class="v">Arrow keys / W S / drag on mobile / gamepad</span></div>
-    <div class="row"><span class="k">Goal</span><span class="v">First to the target score wins the rally</span></div>
-    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the centre mobile button</span></div>
+    <div class="row"><span class="k">Flip</span><span class="v">Tap, click, or gamepad d-pad + A</span></div>
+    <div class="row"><span class="k">Match</span><span class="v">Find its twin to keep both face up</span></div>
+    <div class="row"><span class="k">Goal</span><span class="v">Match every pair in as few moves as possible</span></div>
+    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the gamepad Start button</span></div>
     <h3 style="margin-top:20px;">Features</h3>
-    <div class="row"><span class="k">Three paces</span><span class="v">Calm, Steady, Swift</span></div>
-    <div class="row"><span class="k">Gamepad support</span><span class="v">left stick / d-pad, A to start, Start to pause</span></div>
-    <div class="row"><span class="k">Soft glow trail</span><span class="v">a calm visual signature</span></div>
-    <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rallies sound alike</span></div>
+    <div class="row"><span class="k">Three sizes</span><span class="v">Easy, Medium, Hard</span></div>
+    <div class="row"><span class="k">No timer</span><span class="v">just a quiet, unhurried game</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">d-pad navigation, A to flip</span></div>
+    <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
 </div>
@@ -331,9 +359,14 @@
 (function(){
 "use strict";
 
-const BOARD_W = 400, BOARD_H = 300;
-const PADDLE_W = 8, PADDLE_H = 56;
-const BALL_R = 5;
+const SYMBOLS = ['🌙','✦','🌊','🍃','🔮','🪶','🌸','🫧','🕊️','🌾','🧊','🪴','🐚','🎐','🌌','🧺'];
+
+const MODES = {
+  easy:   { label:'Easy',   pairs:6,  cols:4 },
+  medium: { label:'Medium', pairs:9,  cols:6 },
+  hard:   { label:'Hard',   pairs:12, cols:6 }
+};
+let currentMode = 'medium';
 
 /* ============================= AUDIO ENGINE ============================= */
 const Audio_ = (function(){
@@ -358,7 +391,7 @@ const Audio_ = (function(){
       musicGain = ctx.createGain(); musicGain.gain.value = musicVol; musicGain.connect(ctx.destination);
       sfxGain = ctx.createGain(); sfxGain.gain.value = sfxVol; sfxGain.connect(ctx.destination);
       padGain = ctx.createGain(); padGain.gain.value = 1; padGain.connect(musicGain);
-      noiseGain = ctx.createGain(); noiseGain.gain.value = 0.04; noiseGain.connect(musicGain);
+      noiseGain = ctx.createGain(); noiseGain.gain.value = 0.045; noiseGain.connect(musicGain);
       startNoiseBed();
     }
     if(ctx.state === 'suspended') ctx.resume();
@@ -377,7 +410,7 @@ const Audio_ = (function(){
     const src = ctx.createBufferSource();
     src.buffer = buffer; src.loop = true;
     const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass'; filter.frequency.value = 420;
+    filter.type = 'lowpass'; filter.frequency.value = 450;
     src.connect(filter); filter.connect(noiseGain);
     src.start();
   }
@@ -456,19 +489,17 @@ const Audio_ = (function(){
   let playBellPublic = (f,t,v)=>{ ensureCtx(); playBell(f,t,v); };
 
   const SFX = {
-    paddleHit(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 420, 0.08, 'triangle', 0.06, 520); },
-    wallHit(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 260, 0.06, 'sine', 0.04); },
-    score(win){
+    flip(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 340, 0.06, 'triangle', 0.045, 420); },
+    match(){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      const notes = win ? [523.25,659.25,783.99] : [349.23,293.66];
-      notes.forEach((f,i)=> playBellPublic(f, t+i*0.09, 0.08));
+      [523.25,659.25,783.99].forEach((f,i)=> playBellPublic(f, t+i*0.08, 0.08));
     },
-    matchEnd(won){
+    mismatch(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 220, 0.12, 'sine', 0.04, 160); },
+    complete(){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      const notes = won ? [523.25,659.25,783.99,1046.5] : [440,392,349.23,293.66];
-      notes.forEach((f,i)=> tone(t+i*0.16, f, 0.45, 'sine', 0.07));
+      [523.25,659.25,783.99,1046.5].forEach((f,i)=> tone(t+i*0.1, f, 0.4, 'sine', 0.07));
     },
     ui(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 600, 0.05, 'sine', 0.04); },
     pause(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 300, 0.09, 'triangle', 0.05, 220); }
@@ -486,7 +517,7 @@ const Audio_ = (function(){
 
 /* ============================= CLOUD SYNC (optional) ============================= */
 const CloudSync = (function(){
-  const GAME_ID = 'pong';
+  const GAME_ID = 'memory-match';
   function token(){ return localStorage.getItem('gh_token'); }
   async function pull(){
     const t = token(); if(!t) return null;
@@ -497,12 +528,14 @@ const CloudSync = (function(){
       return data.score || 0;
     } catch { return null; }
   }
-  function push(score){
+  // For this game, fewer moves is better, so we store (100000 - moves) as the
+  // "score" to reuse the shared max-wins scoring endpoint, then invert back.
+  function push(moves){
     const t = token(); if(!t) return;
     fetch('/api/scores', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+t },
-      body: JSON.stringify({ game: GAME_ID, score })
+      body: JSON.stringify({ game: GAME_ID, score: 100000 - moves })
     }).catch(()=>{});
   }
   return { pull, push };
@@ -511,20 +544,12 @@ const CloudSync = (function(){
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
   let padIndex = null;
-  let blocked = false;
   const prevButtons = {};
-  const DEADZONE = 0.32;
+  const DEADZONE = 0.5;
   window.addEventListener('gamepadconnected', e=>{ padIndex = e.gamepad.index; });
   window.addEventListener('gamepaddisconnected', e=>{ if(padIndex===e.gamepad.index) padIndex=null; });
   function poll(){
-    if(blocked || !navigator.getGamepads) return null;
-    let pads;
-    try{
-      pads = navigator.getGamepads();
-    } catch {
-      blocked = true; // e.g. blocked by a Permissions-Policy header when embedded
-      return null;
-    }
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     if(padIndex===null){
       for(const p of pads){ if(p){ padIndex = p.index; break; } }
     }
@@ -536,8 +561,13 @@ const GamepadNav = (function(){
     prevButtons[i] = now;
     return now && !was;
   }
-  function held(gp, i){ return !!(gp.buttons[i] && gp.buttons[i].pressed); }
-  return { poll, justPressed, held, DEADZONE };
+  function justAxis(key, value){
+    const now = value > DEADZONE ? 1 : value < -DEADZONE ? -1 : 0;
+    const was = prevButtons[key] || 0;
+    prevButtons[key] = now;
+    return now !== 0 && now !== was ? now : 0;
+  }
+  return { poll, justPressed, justAxis };
 })();
 
 /* ============================= BACKGROUND AURORA ============================= */
@@ -553,13 +583,13 @@ function resizeBg(){
 window.addEventListener('resize', resizeBg);
 resizeBg();
 
-const stars = Array.from({length:80}, ()=>({
+const stars = Array.from({length:70}, ()=>({
   x:Math.random(), y:Math.random()*0.7, r:Math.random()*1.4+0.3, phase:Math.random()*Math.PI*2, speed:0.3+Math.random()*0.5
 }));
 const waves = [
-  {amp:26, len:0.9, speed:0.06, color:'rgba(127,231,196,0.10)', yBase:0.6},
-  {amp:34, len:0.6, speed:-0.045, color:'rgba(185,163,227,0.10)', yBase:0.7},
-  {amp:20, len:1.3, speed:0.03, color:'rgba(242,167,176,0.07)', yBase:0.81}
+  {amp:26, len:0.9, speed:0.06, color:'rgba(127,231,196,0.10)', yBase:0.55},
+  {amp:34, len:0.6, speed:-0.045, color:'rgba(185,163,227,0.10)', yBase:0.66},
+  {amp:20, len:1.3, speed:0.03, color:'rgba(242,167,176,0.07)', yBase:0.78}
 ];
 let bgTime = 0;
 function drawBg(dt){
@@ -606,18 +636,24 @@ function drawBg(dt){
     bgCtx.fill();
   });
 }
+let lastBgTime = 0;
+requestAnimationFrame(function bgLoop(t){
+  const dt = Math.min(50, t-lastBgTime); lastBgTime = t;
+  drawBg(dt/1000);
+  pollGamepad();
+  requestAnimationFrame(bgLoop);
+});
 
 /* ============================= LAYOUT ============================= */
-const boardCanvas = document.getElementById('board');
-const boardCtx = boardCanvas.getContext('2d');
-let scale = 1;
+const boardEl = document.getElementById('board');
+let cell = 70, gap = 10;
 
 function computeLayout(){
   const isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 880;
   const gameArea = document.getElementById('gameArea');
   const areaRect = gameArea.getBoundingClientRect();
-  let availH = areaRect.height - 16;
-  let availW = areaRect.width - 16;
+  let availH = areaRect.height - 44;
+  let availW = areaRect.width - 44;
   if(isMobile){
     const leftPanel = document.querySelector('.panel-col.left').offsetHeight;
     const rightPanel = document.querySelector('.panel-col.right').offsetHeight;
@@ -625,56 +661,116 @@ function computeLayout(){
   } else {
     availW -= (170*2 + 22*2);
   }
-  scale = Math.min(availH/BOARD_H, availW/BOARD_W);
-  scale = Math.max(0.6, Math.min(scale, 2.2));
-  const w = Math.floor(BOARD_W*scale), h = Math.floor(BOARD_H*scale);
-  boardCanvas.width = w*dpr;
-  boardCanvas.height = h*dpr;
-  boardCanvas.style.width = w+'px';
-  boardCanvas.style.height = h+'px';
-  boardCtx.setTransform(dpr*scale,0,0,dpr*scale,0,0);
+  const cols = MODES[currentMode].cols;
+  const rows = Math.ceil((MODES[currentMode].pairs*2) / cols);
+  gap = Math.max(6, Math.floor(Math.min(availW/cols, availH/rows)*0.06));
+  cell = Math.floor(Math.min((availW - gap*(cols+1))/cols, (availH - gap*(rows+1))/rows));
+  cell = Math.max(36, Math.min(cell, 110));
+  const totalW = cell*cols + gap*(cols+1);
+  const totalH = cell*rows + gap*(rows+1);
+  boardEl.style.width = totalW+'px';
+  boardEl.style.height = totalH+'px';
+  boardEl.style.padding = gap+'px';
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, ${cell}px)`;
+  boardEl.style.gridTemplateRows = `repeat(${rows}, ${cell}px)`;
+  boardEl.style.gap = gap+'px';
+  document.querySelectorAll('.card').forEach(el=>{
+    el.style.width = cell+'px';
+    el.style.height = cell+'px';
+  });
+  const fontSize = Math.max(16, cell*0.42);
+  document.querySelectorAll('.card-front').forEach(el=> el.style.fontSize = fontSize+'px');
 }
 window.addEventListener('resize', computeLayout);
 window.addEventListener('orientationchange', ()=>setTimeout(computeLayout, 200));
 
 /* ============================= GAME STATE ============================= */
-const MODES = {
-  calm:   { label:'Calm',   ballSpeed:150, aiSpeed:120 },
-  steady: { label:'Steady', ballSpeed:210, aiSpeed:170 },
-  swift:  { label:'Swift',  ballSpeed:280, aiSpeed:225 }
-};
-let currentMode = 'steady';
+let cards = []; // {symbol, matched, el}
+let gpFocusIndex = 0;
+let firstPick = null, secondPick = null, locking = false;
+let moves = 0, pairsFound = 0, totalPairs = 0;
+let gameState = 'idle';
+let bestMoves = {};
 
-let player, opponent, ball;
-let score, oppScore, highScore, longestRally, rally, targetScore;
-let gameState;
-let moveUp=false, moveDown=false, gpUp=false, gpDown=false;
-
-function resetMatch(){
-  player = { y: BOARD_H/2 - PADDLE_H/2 };
-  opponent = { y: BOARD_H/2 - PADDLE_H/2 };
-  score = 0; oppScore = 0; rally = 0; longestRally = 0;
-  targetScore = 7;
-  spawnBall(Math.random()<0.5 ? 1 : -1);
-  updateHUD();
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
 }
 
-function spawnBall(dir){
-  const speed = MODES[currentMode].ballSpeed;
-  const angle = (Math.random()*0.6 - 0.3); // radians
-  ball = {
-    x: BOARD_W/2, y: BOARD_H/2,
-    vx: Math.cos(angle)*speed*dir,
-    vy: Math.sin(angle)*speed
-  };
+function buildDeck(){
+  const conf = MODES[currentMode];
+  totalPairs = conf.pairs;
+  const chosen = shuffle(SYMBOLS.slice()).slice(0, conf.pairs);
+  const deck = shuffle(chosen.concat(chosen));
+  return deck.map((symbol, i)=> ({ id:i, symbol, matched:false }));
+}
+
+function renderBoard(){
+  boardEl.innerHTML = '';
+  cards.forEach(card=>{
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.dataset.id = card.id;
+    el.innerHTML = `
+      <div class="card-inner">
+        <div class="card-face card-back"></div>
+        <div class="card-face card-front">${card.symbol}</div>
+      </div>`;
+    el.addEventListener('click', ()=> onCardClick(card, el));
+    boardEl.appendChild(el);
+    card.el = el;
+  });
+  computeLayout();
+  gpFocusIndex = 0;
+  updateGpFocusRing();
+}
+
+function updateGpFocusRing(){
+  cards.forEach((c,i)=> c.el && c.el.classList.toggle('gp-focused', i===gpFocusIndex));
+}
+
+function pollGamepad(){
+  const gp = GamepadNav.poll();
+  if(!gp) return;
+
+  if(gameState==='running' && cards.length){
+    const cols = MODES[currentMode].cols;
+    const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
+    const axisY = GamepadNav.justAxis('y', gp.axes[1]||0);
+    const left = GamepadNav.justPressed(gp, 14) || axisX < 0;
+    const right = GamepadNav.justPressed(gp, 15) || axisX > 0;
+    const up = GamepadNav.justPressed(gp, 12) || axisY < 0;
+    const down = GamepadNav.justPressed(gp, 13) || axisY > 0;
+    let moved = false;
+    if(left && gpFocusIndex % cols > 0){ gpFocusIndex--; moved = true; }
+    if(right && gpFocusIndex % cols < cols-1 && gpFocusIndex+1 < cards.length){ gpFocusIndex++; moved = true; }
+    if(up && gpFocusIndex - cols >= 0){ gpFocusIndex -= cols; moved = true; }
+    if(down && gpFocusIndex + cols < cards.length){ gpFocusIndex += cols; moved = true; }
+    if(moved){ updateGpFocusRing(); Audio_.sfx.ui(); }
+    if(GamepadNav.justPressed(gp, 0)){ // A
+      const card = cards[gpFocusIndex];
+      if(card) onCardClick(card, card.el);
+    }
+  } else {
+    // On an overlay: A/Start triggers the visible primary button.
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){
+      if(document.getElementById('overlayStart').classList.contains('visible')) startGame();
+      else if(document.getElementById('overlayGameOver').classList.contains('visible')) startGame();
+      else if(document.getElementById('overlayPause').classList.contains('visible')) togglePause();
+    }
+  }
+  if(gameState==='running' && GamepadNav.justPressed(gp, 9)) togglePause(); // Start/Menu
 }
 
 function updateHUD(){
-  document.getElementById('scoreVal').textContent = score;
-  document.getElementById('oppScoreVal').textContent = oppScore;
-  document.getElementById('highScoreVal').textContent = Math.max(longestRally, highScore);
-  document.getElementById('rallyVal').textContent = longestRally;
-  document.getElementById('targetVal').textContent = targetScore;
+  document.getElementById('movesVal').textContent = moves;
+  document.getElementById('pairsVal').textContent = `${pairsFound} / ${totalPairs}`;
+  document.getElementById('diffVal').textContent = MODES[currentMode].label;
+  const best = bestMoves[currentMode];
+  document.getElementById('highScoreVal').textContent = best ? best : '—';
 }
 
 function showToast(text){
@@ -685,211 +781,69 @@ function showToast(text){
   t._timer = setTimeout(()=>t.classList.remove('show'), 900);
 }
 
-/* ============================= UPDATE ============================= */
-function updateGame(dt){
-  const sec = dt/1000;
-  const speed = 260;
-  if(moveUp||gpUp) player.y -= speed*sec;
-  if(moveDown||gpDown) player.y += speed*sec;
-  player.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, player.y));
+function onCardClick(card, el){
+  if(gameState!=='running' || locking) return;
+  if(card.matched || card === firstPick) return;
 
-  // simple AI: track ball with capped speed, slight easing
-  const aiSpeed = MODES[currentMode].aiSpeed;
-  const targetY = ball.y - PADDLE_H/2;
-  const diff = targetY - opponent.y;
-  const maxStep = aiSpeed*sec;
-  opponent.y += Math.max(-maxStep, Math.min(maxStep, diff));
-  opponent.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, opponent.y));
+  el.classList.add('flipped');
+  Audio_.sfx.flip();
 
-  ball.x += ball.vx*sec;
-  ball.y += ball.vy*sec;
-
-  if(ball.y - BALL_R < 0){ ball.y = BALL_R; ball.vy *= -1; Audio_.sfx.wallHit(); }
-  if(ball.y + BALL_R > BOARD_H){ ball.y = BOARD_H-BALL_R; ball.vy *= -1; Audio_.sfx.wallHit(); }
-
-  // player paddle (left side, x = 16)
-  const playerX = 16;
-  if(ball.vx < 0 && ball.x - BALL_R < playerX + PADDLE_W && ball.x - BALL_R > playerX - 10 &&
-     ball.y > player.y - BALL_R && ball.y < player.y + PADDLE_H + BALL_R){
-    ball.x = playerX + PADDLE_W + BALL_R;
-    const rel = (ball.y - (player.y+PADDLE_H/2)) / (PADDLE_H/2);
-    const speedNow = Math.hypot(ball.vx, ball.vy) * 1.04;
-    ball.vx = Math.abs(Math.cos(rel*0.5))*speedNow;
-    ball.vy = Math.sin(rel*0.9)*speedNow;
-    rally++;
-    longestRally = Math.max(longestRally, rally);
-    Audio_.sfx.paddleHit();
-    updateHUD();
+  if(!firstPick){
+    firstPick = card;
+    return;
   }
+  secondPick = card;
+  moves++;
+  updateHUD();
+  locking = true;
 
-  // opponent paddle (right side)
-  const oppX = BOARD_W - 16 - PADDLE_W;
-  if(ball.vx > 0 && ball.x + BALL_R > oppX && ball.x + BALL_R < oppX + PADDLE_W + 10 &&
-     ball.y > opponent.y - BALL_R && ball.y < opponent.y + PADDLE_H + BALL_R){
-    ball.x = oppX - BALL_R;
-    const rel = (ball.y - (opponent.y+PADDLE_H/2)) / (PADDLE_H/2);
-    const speedNow = Math.hypot(ball.vx, ball.vy) * 1.03;
-    ball.vx = -Math.abs(Math.cos(rel*0.5))*speedNow;
-    ball.vy = Math.sin(rel*0.9)*speedNow;
-    rally++;
-    longestRally = Math.max(longestRally, rally);
-    Audio_.sfx.paddleHit();
+  if(firstPick.symbol === secondPick.symbol){
+    firstPick.matched = true; secondPick.matched = true;
+    firstPick.el.classList.add('matched');
+    secondPick.el.classList.add('matched');
+    pairsFound++;
+    Audio_.sfx.match();
     updateHUD();
-  }
-
-  // scoring
-  if(ball.x < -20){
-    oppScore++;
-    rally = 0;
-    Audio_.sfx.score(false);
-    showToast('Opponent scores');
-    updateHUD();
-    if(oppScore >= targetScore){ return endMatch(false); }
-    spawnBall(1);
-  } else if(ball.x > BOARD_W+20){
-    score++;
-    rally = 0;
-    Audio_.sfx.score(true);
-    showToast('You score!');
-    updateHUD();
-    if(score >= targetScore){ return endMatch(true); }
-    spawnBall(-1);
+    firstPick = null; secondPick = null; locking = false;
+    if(pairsFound === totalPairs) finishGame();
+  } else {
+    Audio_.sfx.mismatch();
+    firstPick.el.classList.add('wrong');
+    secondPick.el.classList.add('wrong');
+    setTimeout(()=>{
+      firstPick.el.classList.remove('flipped','wrong');
+      secondPick.el.classList.remove('flipped','wrong');
+      firstPick = null; secondPick = null; locking = false;
+    }, 700);
   }
 }
 
-function endMatch(won){
+function finishGame(){
   gameState = 'over';
-  Audio_.sfx.matchEnd(won);
-  highScore = Math.max(highScore, longestRally);
-  localStorage.setItem('apong_highscore', String(highScore));
-  CloudSync.push(highScore);
-  document.getElementById('overTitle').textContent = won ? 'You took the rally' : 'Settled';
-  document.getElementById('finalScoreText').textContent = `You ${score} — ${oppScore} Opponent`;
+  Audio_.sfx.complete();
+  const best = bestMoves[currentMode];
+  if(!best || moves < best){
+    bestMoves[currentMode] = moves;
+    localStorage.setItem('amem_best', JSON.stringify(bestMoves));
+    CloudSync.push(moves);
+  }
+  document.getElementById('finalScoreText').textContent = `Finished in ${moves} moves` +
+    (bestMoves[currentMode]===moves ? '  •  new best' : '');
   document.getElementById('overlayGameOver').classList.add('visible');
   updateHUD();
 }
 
-/* ============================= DRAWING ============================= */
-function roundRect(ctx,x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
+function startGame(){
+  cards = buildDeck();
+  moves = 0; pairsFound = 0;
+  firstPick = null; secondPick = null; locking = false;
+  gameState = 'running';
+  document.getElementById('overlayStart').classList.remove('visible');
+  document.getElementById('overlayGameOver').classList.remove('visible');
+  renderBoard();
+  updateHUD();
+  Audio_.init();
 }
-
-function drawBoard(){
-  boardCtx.clearRect(0,0,BOARD_W,BOARD_H);
-
-  // center dashed line
-  boardCtx.strokeStyle = 'rgba(255,255,255,0.08)';
-  boardCtx.lineWidth = 2;
-  boardCtx.setLineDash([6,10]);
-  boardCtx.beginPath();
-  boardCtx.moveTo(BOARD_W/2, 0); boardCtx.lineTo(BOARD_W/2, BOARD_H);
-  boardCtx.stroke();
-  boardCtx.setLineDash([]);
-
-  // paddles
-  boardCtx.save();
-  boardCtx.shadowColor = '#7FE7C4';
-  boardCtx.shadowBlur = 10;
-  boardCtx.fillStyle = '#7FE7C4';
-  roundRect(boardCtx, 16, player.y, PADDLE_W, PADDLE_H, 4);
-  boardCtx.fill();
-  boardCtx.restore();
-
-  boardCtx.save();
-  boardCtx.shadowColor = '#B9A3E3';
-  boardCtx.shadowBlur = 10;
-  boardCtx.fillStyle = '#B9A3E3';
-  roundRect(boardCtx, BOARD_W-16-PADDLE_W, opponent.y, PADDLE_W, PADDLE_H, 4);
-  boardCtx.fill();
-  boardCtx.restore();
-
-  // ball
-  boardCtx.save();
-  boardCtx.shadowColor = '#F5EFE0';
-  boardCtx.shadowBlur = 12;
-  boardCtx.fillStyle = '#F5EFE0';
-  boardCtx.beginPath();
-  boardCtx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
-  boardCtx.fill();
-  boardCtx.restore();
-}
-
-/* ============================= GAME LOOP ============================= */
-let lastTime = 0;
-function loop(t){
-  const dt = Math.min(50, t-lastTime); lastTime = t;
-  drawBg(dt/1000);
-  pollGamepad();
-  if(gameState==='running') updateGame(dt);
-  drawBoard();
-  requestAnimationFrame(loop);
-}
-
-function pollGamepad(){
-  const gp = GamepadNav.poll();
-  if(!gp){ gpUp=false; gpDown=false; return; }
-  const axisY = gp.axes[1] || 0;
-  gpUp = GamepadNav.held(gp, 12) || axisY < -GamepadNav.DEADZONE;
-  gpDown = GamepadNav.held(gp, 13) || axisY > GamepadNav.DEADZONE;
-  if(GamepadNav.justPressed(gp, 9)) togglePause(); // Start/Menu
-  if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 1)){ // A / B
-    if(gameState==='idle' || gameState==='over') startGame();
-    else if(gameState==='paused') togglePause();
-  }
-}
-
-/* ============================= INPUT ============================= */
-window.addEventListener('keydown', e=>{
-  if(['ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
-  if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
-  switch(e.key){
-    case 'ArrowUp': case 'w': case 'W': moveUp = true; break;
-    case 'ArrowDown': case 's': case 'S': moveDown = true; break;
-    case 'p': case 'P': case 'Escape': togglePause(); break;
-    case 'm': case 'M': toggleMusicQuick(); break;
-  }
-});
-window.addEventListener('keyup', e=>{
-  if(e.key==='ArrowUp'||e.key==='w'||e.key==='W') moveUp=false;
-  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') moveDown=false;
-});
-
-function toggleMusicQuick(){
-  const sw = document.getElementById('toggleMusic');
-  sw.classList.toggle('on');
-  const on = sw.classList.contains('on');
-  Audio_.setMusicOn(on);
-  localStorage.setItem('apong_music_on', on?'1':'0');
-}
-
-function bindHold(el, onDown, onUp){
-  el.addEventListener('touchstart', e=>{ e.preventDefault(); onDown(); }, {passive:false});
-  el.addEventListener('touchend', e=>{ e.preventDefault(); onUp&&onUp(); }, {passive:false});
-  el.addEventListener('mousedown', onDown);
-  el.addEventListener('mouseup', ()=>onUp&&onUp());
-  el.addEventListener('mouseleave', ()=>onUp&&onUp());
-}
-bindHold(document.getElementById('padUp'), ()=>moveUp=true, ()=>moveUp=false);
-bindHold(document.getElementById('padDown'), ()=>moveDown=true, ()=>moveDown=false);
-
-/* drag to move paddle directly */
-let dragging=false;
-const boardWrap = document.querySelector('.board-wrap');
-boardWrap.addEventListener('touchstart', e=>{ dragging=true; }, {passive:true});
-boardWrap.addEventListener('touchmove', e=>{
-  if(!dragging || gameState!=='running') return;
-  const rect = boardCanvas.getBoundingClientRect();
-  const t = e.touches[0];
-  const y = (t.clientY - rect.top) / scale;
-  player.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, y - PADDLE_H/2));
-}, {passive:true});
-boardWrap.addEventListener('touchend', ()=>{ dragging=false; }, {passive:true});
 
 /* ============================= UI WIRING ============================= */
 function togglePause(){
@@ -928,77 +882,83 @@ document.getElementById('toggleMusic').addEventListener('click', e=>{
   e.currentTarget.classList.toggle('on');
   const on = e.currentTarget.classList.contains('on');
   Audio_.setMusicOn(on);
-  localStorage.setItem('apong_music_on', on?'1':'0');
+  localStorage.setItem('amem_music_on', on?'1':'0');
 });
 document.getElementById('toggleSfx').addEventListener('click', e=>{
   e.currentTarget.classList.toggle('on');
   const on = e.currentTarget.classList.contains('on');
   Audio_.setSfxOn(on);
-  localStorage.setItem('apong_sfx_on', on?'1':'0');
+  localStorage.setItem('amem_sfx_on', on?'1':'0');
 });
 document.getElementById('musicVol').addEventListener('input', e=>{
   const v = e.target.value/100;
   Audio_.setMusicVol(v);
   document.getElementById('musicVolLabel').textContent = e.target.value+'%';
-  localStorage.setItem('apong_music_vol', v);
+  localStorage.setItem('amem_music_vol', v);
 });
 document.getElementById('sfxVol').addEventListener('input', e=>{
   const v = e.target.value/100;
   Audio_.setSfxVol(v);
   document.getElementById('sfxVolLabel').textContent = e.target.value+'%';
-  localStorage.setItem('apong_sfx_vol', v);
+  localStorage.setItem('amem_sfx_vol', v);
 });
 
 function loadAudioPrefs(){
-  const mOn = localStorage.getItem('apong_music_on');
-  const sOn = localStorage.getItem('apong_sfx_on');
-  const mVol = localStorage.getItem('apong_music_vol');
-  const sVol = localStorage.getItem('apong_sfx_vol');
+  const mOn = localStorage.getItem('amem_music_on');
+  const sOn = localStorage.getItem('amem_sfx_on');
+  const mVol = localStorage.getItem('amem_music_vol');
+  const sVol = localStorage.getItem('amem_sfx_vol');
   if(mOn!==null){ const on = mOn==='1'; document.getElementById('toggleMusic').classList.toggle('on', on); Audio_.setMusicOn(on); }
   if(sOn!==null){ const on = sOn==='1'; document.getElementById('toggleSfx').classList.toggle('on', on); Audio_.setSfxOn(on); }
   if(mVol!==null){ Audio_.setMusicVol(parseFloat(mVol)); document.getElementById('musicVol').value = Math.round(parseFloat(mVol)*100); document.getElementById('musicVolLabel').textContent = Math.round(parseFloat(mVol)*100)+'%'; }
   if(sVol!==null){ Audio_.setSfxVol(parseFloat(sVol)); document.getElementById('sfxVol').value = Math.round(parseFloat(sVol)*100); document.getElementById('sfxVolLabel').textContent = Math.round(parseFloat(sVol)*100)+'%'; }
 }
 
+function syncModeButtons(){
+  document.querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===currentMode));
+}
 document.getElementById('modeRow').addEventListener('click', e=>{
   const btn = e.target.closest('.mode-btn');
   if(!btn) return;
   currentMode = btn.dataset.mode;
-  document.querySelectorAll('#modeRow .mode-btn').forEach(b=> b.classList.toggle('active', b===btn));
-  localStorage.setItem('apong_mode', currentMode);
+  syncModeButtons();
+  localStorage.setItem('amem_mode', currentMode);
   Audio_.sfx.ui();
+  updateHUD();
+  computeLayout();
+});
+document.getElementById('modeRowOver').addEventListener('click', e=>{
+  const btn = e.target.closest('.mode-btn');
+  if(!btn) return;
+  currentMode = btn.dataset.mode;
+  syncModeButtons();
+  localStorage.setItem('amem_mode', currentMode);
+  Audio_.sfx.ui();
+  updateHUD();
 });
 
-/* ============================= START / RESTART ============================= */
-function startGame(){
-  resetMatch();
-  gameState = 'running';
-  document.getElementById('overlayStart').classList.remove('visible');
-  document.getElementById('overlayGameOver').classList.remove('visible');
-  Audio_.init();
-}
-document.getElementById('btnStart').addEventListener('click', ()=>{ Audio_.init(); startGame(); });
-document.getElementById('btnRestart').addEventListener('click', ()=>{ Audio_.init(); startGame(); });
+document.getElementById('btnStart').addEventListener('click', startGame);
+document.getElementById('btnRestart').addEventListener('click', startGame);
 
 /* ============================= INIT ============================= */
-highScore = parseFloat(localStorage.getItem('apong_highscore')||'0');
-gameState = 'idle';
-const savedMode = localStorage.getItem('apong_mode');
+try{ bestMoves = JSON.parse(localStorage.getItem('amem_best')||'{}'); } catch { bestMoves = {}; }
+const savedMode = localStorage.getItem('amem_mode');
 if(savedMode && MODES[savedMode]){
   currentMode = savedMode;
-  document.querySelectorAll('#modeRow .mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===savedMode));
 }
-resetMatch();
-document.getElementById('highScoreVal').textContent = highScore;
+syncModeButtons();
+updateHUD();
 loadAudioPrefs();
 computeLayout();
-requestAnimationFrame(loop);
 
 CloudSync.pull().then(serverScore=>{
-  if(serverScore && serverScore > highScore){
-    highScore = serverScore;
-    localStorage.setItem('apong_highscore', String(highScore));
-    updateHUD();
+  if(serverScore){
+    const movesFromServer = 100000 - serverScore;
+    if(!bestMoves[currentMode] || movesFromServer < bestMoves[currentMode]){
+      bestMoves[currentMode] = movesFromServer;
+      localStorage.setItem('amem_best', JSON.stringify(bestMoves));
+      updateHUD();
+    }
   }
 });
 
