@@ -159,6 +159,10 @@
     flex-direction:column;gap:14px;text-align:center;padding:20px;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
+  body.nav-mode .overlay{
+    backdrop-filter:blur(11px);
+    background:rgba(9,10,22,0.5);
+  }
   .overlay h2{
     font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon);
   }
@@ -405,12 +409,13 @@
 <div class="modal-back" id="infoModalBack">
   <div class="modal">
     <h3>How to play</h3>
-    <div class="row"><span class="k">Move</span><span class="v">Arrow keys / swipe / ← →</span></div>
-    <div class="row"><span class="k">Rotate</span><span class="v">↑ or X · Z rotates back · tap board</span></div>
-    <div class="row"><span class="k">Soft drop</span><span class="v">↓ held down</span></div>
-    <div class="row"><span class="k">Hard drop</span><span class="v">Space · swipe down fast</span></div>
-    <div class="row"><span class="k">Hold piece</span><span class="v">C · swipe up · HOLD button</span></div>
-    <div class="row"><span class="k">Pause</span><span class="v">P or Esc</span></div>
+    <div class="row"><span class="k">Move</span><span class="v">Arrow keys / swipe / ← → / gamepad d-pad</span></div>
+    <div class="row"><span class="k">Rotate</span><span class="v">↑ or X · Z rotates back · tap board · gamepad A/B</span></div>
+    <div class="row"><span class="k">Soft drop</span><span class="v">↓ held down · gamepad d-pad down</span></div>
+    <div class="row"><span class="k">Hard drop</span><span class="v">Space · swipe down fast · gamepad Y</span></div>
+    <div class="row"><span class="k">Hold piece</span><span class="v">C · swipe up · HOLD button · gamepad X</span></div>
+    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the gamepad Start button</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">7-bag randomizer</span><span class="v">fair piece order</span></div>
     <div class="row"><span class="k">Ghost piece</span><span class="v">see where it lands</span></div>
@@ -418,6 +423,7 @@
     <div class="row"><span class="k">Wall kicks</span><span class="v">rotate near edges</span></div>
     <div class="row"><span class="k">T-spins, combos, back-to-back</span><span class="v">bonus scoring</span></div>
     <div class="row"><span class="k">Lock delay</span><span class="v">a breath before locking</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">full control scheme, see above</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two runs sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -690,6 +696,52 @@ const Audio_ = (function(){
     setSfxVol(v){ sfxVol = v; if(sfxGain) sfxGain.gain.value = v; },
     sfx: SFX
   };
+})();
+
+/* ============================= INPUT MODE (nav vs pointer) ============================= */
+// Purely cosmetic: overlays get a heavier, more "immersive" blur behind them
+// when the person is steering with a keyboard or gamepad, vs. a lighter
+// touch when using a mouse or touch (where it would just get in the way).
+let navMode = false;
+function setNavMode(on){
+  if(navMode === on) return;
+  navMode = on;
+  document.body.classList.toggle('nav-mode', on);
+}
+window.addEventListener('mousemove', ()=> setNavMode(false));
+window.addEventListener('mousedown', ()=> setNavMode(false));
+window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
+
+/* ============================= GAMEPAD SUPPORT ============================= */
+const GamepadNav = (function(){
+  let padIndex = null;
+  let blocked = false;
+  const prevButtons = {};
+  const DEADZONE = 0.35;
+  window.addEventListener('gamepadconnected', e=>{ padIndex = e.gamepad.index; });
+  window.addEventListener('gamepaddisconnected', e=>{ if(padIndex===e.gamepad.index) padIndex=null; });
+  function poll(){
+    if(blocked || !navigator.getGamepads) return null;
+    let pads;
+    try{
+      pads = navigator.getGamepads();
+    } catch {
+      blocked = true; // e.g. blocked by a Permissions-Policy header when embedded
+      return null;
+    }
+    if(padIndex===null){
+      for(const p of pads){ if(p){ padIndex = p.index; break; } }
+    }
+    return padIndex!==null ? pads[padIndex] : null;
+  }
+  function justPressed(gp, i){
+    const now = !!(gp.buttons[i] && gp.buttons[i].pressed);
+    const was = !!prevButtons[i];
+    prevButtons[i] = now;
+    return now && !was;
+  }
+  function held(gp, i){ return !!(gp.buttons[i] && gp.buttons[i].pressed); }
+  return { poll, justPressed, held, DEADZONE };
 })();
 
 /* ============================= BACKGROUND AURORA ============================= */
@@ -1108,14 +1160,16 @@ let lastTime = 0;
 function loop(t){
   const dt = Math.min(50, t-lastTime); lastTime = t;
   drawBg(dt/1000);
+  pollGamepad();
   if(gameState==='running'){
     dropTimer += dt;
-    const interval = softDropping ? Math.min(dropInterval, 50) : dropInterval;
+    const effectiveSoftDrop = softDropping || gpSoftDrop;
+    const interval = effectiveSoftDrop ? Math.min(dropInterval, 50) : dropInterval;
     if(dropTimer > interval){
       dropTimer = 0;
       if(!collides(current,0,1)){
         current.y++;
-        if(softDropping){ score += 1; }
+        if(effectiveSoftDrop){ score += 1; }
         lastMoveWasRotation = false;
       }
     }
@@ -1168,6 +1222,7 @@ window.addEventListener('keydown', e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
   if(e.repeat) return;
   if(gameState==='idle' && e.key!=='Enter') return;
+  setNavMode(true);
   switch(e.key){
     case 'ArrowLeft': keyState.left=true; startAutoRepeat(-1); break;
     case 'ArrowRight': keyState.right=true; startAutoRepeat(1); break;
@@ -1192,6 +1247,48 @@ function toggleMusicQuick(){
   const on = sw.classList.contains('on');
   Audio_.setMusicOn(on);
   localStorage.setItem('at_music_on', on?'1':'0');
+}
+
+let gpSoftDrop = false;
+let gpMoveState = { left:false, right:false };
+function pollGamepad(){
+  const gp = GamepadNav.poll();
+  if(!gp){ gpSoftDrop=false; return; }
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  if(overlayStartVisible || overlayOverVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); startGame(); } // A / Start
+    return;
+  }
+  if(overlayPauseVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    return;
+  }
+
+  if(gameState!=='running') return;
+
+  const axisX = gp.axes[0] || 0;
+  const axisY = gp.axes[1] || 0;
+  const leftHeld = GamepadNav.held(gp, 14) || axisX < -GamepadNav.DEADZONE;
+  const rightHeld = GamepadNav.held(gp, 15) || axisX > GamepadNav.DEADZONE;
+  gpSoftDrop = GamepadNav.held(gp, 13) || axisY > GamepadNav.DEADZONE;
+  if(leftHeld || rightHeld || gpSoftDrop) setNavMode(true);
+
+  if(leftHeld && !gpMoveState.left) startAutoRepeat(-1);
+  if(!leftHeld && gpMoveState.left && !rightHeld) clearTimers();
+  if(rightHeld && !gpMoveState.right) startAutoRepeat(1);
+  if(!rightHeld && gpMoveState.right && !leftHeld) clearTimers();
+  gpMoveState.left = leftHeld; gpMoveState.right = rightHeld;
+
+  if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 12)){ setNavMode(true); tryRotate(1); }  // A / d-pad up: rotate CW
+  if(GamepadNav.justPressed(gp, 1)){ setNavMode(true); tryRotate(-1); } // B: rotate CCW
+  if(GamepadNav.justPressed(gp, 2)){ setNavMode(true); holdSwap(); }    // X: hold
+  if(GamepadNav.justPressed(gp, 3)){ setNavMode(true); hardDrop(); }    // Y: hard drop
+  if(GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // Start
 }
 
 /* Touch controls: buttons */

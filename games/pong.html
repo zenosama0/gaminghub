@@ -112,6 +112,10 @@
     flex-direction:column;gap:14px;text-align:center;padding:20px;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
+  body.nav-mode .overlay{
+    backdrop-filter:blur(11px);
+    background:rgba(9,10,22,0.5);
+  }
   .overlay h2{ font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon); }
   .overlay p{margin:0;color:var(--text-dim);font-size:13px;max-width:280px;}
   .btn{
@@ -270,6 +274,11 @@
       <div class="overlay" id="overlayGameOver">
         <h2 id="overTitle">Settled</h2>
         <p id="finalScoreText">You 0 — 0 Opponent</p>
+        <div class="mode-row" id="modeRowOver">
+          <button class="mode-btn" data-mode="calm">Calm</button>
+          <button class="mode-btn" data-mode="steady">Steady</button>
+          <button class="mode-btn" data-mode="swift">Swift</button>
+        </div>
         <button class="btn" id="btnRestart">Play again</button>
       </div>
     </div>
@@ -303,7 +312,7 @@
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the centre mobile button</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Three paces</span><span class="v">Calm, Steady, Swift</span></div>
-    <div class="row"><span class="k">Gamepad support</span><span class="v">left stick / d-pad, A to start, Start to pause</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">left stick / d-pad to move, d-pad L/R to change pace, Select returns to hub while paused</span></div>
     <div class="row"><span class="k">Soft glow trail</span><span class="v">a calm visual signature</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rallies sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
@@ -508,6 +517,20 @@ const CloudSync = (function(){
   return { pull, push };
 })();
 
+/* ============================= INPUT MODE (nav vs pointer) ============================= */
+// Purely cosmetic: overlays get a heavier, more "immersive" blur behind them
+// when the person is steering with a keyboard or gamepad, vs. a lighter
+// touch when using a mouse or touch (where it would just get in the way).
+let navMode = false;
+function setNavMode(on){
+  if(navMode === on) return;
+  navMode = on;
+  document.body.classList.toggle('nav-mode', on);
+}
+window.addEventListener('mousemove', ()=> setNavMode(false));
+window.addEventListener('mousedown', ()=> setNavMode(false));
+window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
+
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
   let padIndex = null;
@@ -537,7 +560,13 @@ const GamepadNav = (function(){
     return now && !was;
   }
   function held(gp, i){ return !!(gp.buttons[i] && gp.buttons[i].pressed); }
-  return { poll, justPressed, held, DEADZONE };
+  function justAxis(key, value){
+    const now = value > DEADZONE ? 1 : value < -DEADZONE ? -1 : 0;
+    const was = prevButtons[key] || 0;
+    prevButtons[key] = now;
+    return now !== 0 && now !== was ? now : 0;
+  }
+  return { poll, justPressed, held, justAxis, DEADZONE };
 })();
 
 /* ============================= BACKGROUND AURORA ============================= */
@@ -837,17 +866,40 @@ function pollGamepad(){
   const axisY = gp.axes[1] || 0;
   gpUp = GamepadNav.held(gp, 12) || axisY < -GamepadNav.DEADZONE;
   gpDown = GamepadNav.held(gp, 13) || axisY > GamepadNav.DEADZONE;
-  if(GamepadNav.justPressed(gp, 9)) togglePause(); // Start/Menu
+  if(gpUp || gpDown) setNavMode(true);
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  if(overlayStartVisible || overlayOverVisible){
+    const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
+    if(GamepadNav.justPressed(gp, 14) || axisX < 0){ setNavMode(true); cycleMode(-1); }
+    if(GamepadNav.justPressed(gp, 15) || axisX > 0){ setNavMode(true); cycleMode(1); }
+  }
+
+  if(GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // Start/Menu
   if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 1)){ // A / B
+    setNavMode(true);
     if(gameState==='idle' || gameState==='over') startGame();
     else if(gameState==='paused') togglePause();
+  }
+  if(overlayPauseVisible && GamepadNav.justPressed(gp, 8)){ // Select — only while paused
+    window.location.href = '../index.html';
   }
 }
 
 /* ============================= INPUT ============================= */
 window.addEventListener('keydown', e=>{
-  if(['ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
-  if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  if(gameState==='idle' && !['p','P','Escape','m','M','ArrowLeft','ArrowRight'].includes(e.key)) return;
+  setNavMode(true);
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  if(overlayStartVisible || overlayOverVisible){
+    if(e.key==='ArrowLeft'){ cycleMode(-1); return; }
+    if(e.key==='ArrowRight'){ cycleMode(1); return; }
+  }
   switch(e.key){
     case 'ArrowUp': case 'w': case 'W': moveUp = true; break;
     case 'ArrowDown': case 's': case 'S': moveDown = true; break;
@@ -960,13 +1012,27 @@ function loadAudioPrefs(){
   if(sVol!==null){ Audio_.setSfxVol(parseFloat(sVol)); document.getElementById('sfxVol').value = Math.round(parseFloat(sVol)*100); document.getElementById('sfxVolLabel').textContent = Math.round(parseFloat(sVol)*100)+'%'; }
 }
 
-document.getElementById('modeRow').addEventListener('click', e=>{
-  const btn = e.target.closest('.mode-btn');
-  if(!btn) return;
-  currentMode = btn.dataset.mode;
-  document.querySelectorAll('#modeRow .mode-btn').forEach(b=> b.classList.toggle('active', b===btn));
+function syncModeButtons(){
+  document.querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===currentMode));
+}
+function setMode(mode){
+  currentMode = mode;
+  syncModeButtons();
   localStorage.setItem('apong_mode', currentMode);
   Audio_.sfx.ui();
+}
+function cycleMode(dir){
+  const keys = Object.keys(MODES);
+  const idx = keys.indexOf(currentMode);
+  setMode(keys[(idx + dir + keys.length) % keys.length]);
+}
+document.getElementById('modeRow').addEventListener('click', e=>{
+  const btn = e.target.closest('.mode-btn');
+  if(btn) setMode(btn.dataset.mode);
+});
+document.getElementById('modeRowOver').addEventListener('click', e=>{
+  const btn = e.target.closest('.mode-btn');
+  if(btn) setMode(btn.dataset.mode);
 });
 
 /* ============================= START / RESTART ============================= */
@@ -984,10 +1050,8 @@ document.getElementById('btnRestart').addEventListener('click', ()=>{ Audio_.ini
 highScore = parseFloat(localStorage.getItem('apong_highscore')||'0');
 gameState = 'idle';
 const savedMode = localStorage.getItem('apong_mode');
-if(savedMode && MODES[savedMode]){
-  currentMode = savedMode;
-  document.querySelectorAll('#modeRow .mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===savedMode));
-}
+if(savedMode && MODES[savedMode]) currentMode = savedMode;
+syncModeButtons();
 resetMatch();
 document.getElementById('highScoreVal').textContent = highScore;
 loadAudioPrefs();

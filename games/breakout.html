@@ -103,6 +103,10 @@
     flex-direction:column;gap:14px;text-align:center;padding:20px;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
+  body.nav-mode .overlay{
+    backdrop-filter:blur(11px);
+    background:rgba(9,10,22,0.5);
+  }
   .overlay h2{ font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon); }
   .overlay p{margin:0;color:var(--text-dim);font-size:13px;max-width:280px;}
   .btn{
@@ -287,10 +291,17 @@
     <div class="row"><span class="k">Move</span><span class="v">Arrow keys / A D / drag / gamepad</span></div>
     <div class="row"><span class="k">Launch</span><span class="v">Space / tap launch / gamepad button</span></div>
     <div class="row"><span class="k">Goal</span><span class="v">Clear every brick before running out of lives</span></div>
-    <div class="row"><span class="k">Pause</span><span class="v">P or Esc</span></div>
+    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the gamepad Start button</span></div>
+    <h3 style="margin-top:20px;">Power-ups</h3>
+    <div class="row"><span class="k">✦ Triple ball</span><span class="v">splits every ball in play into three</span></div>
+    <div class="row"><span class="k">✦ Extra life</span><span class="v">one more chance, up to five</span></div>
+    <div class="row"><span class="k">✦ Expand</span><span class="v">a wider paddle for a little while</span></div>
+    <div class="row"><span class="k">✦ Machine gun</span><span class="v">the paddle fires upward for 10 seconds</span></div>
+    <div class="row"><span class="k">✦ Metal ball</span><span class="v">plows through bricks instead of bouncing</span></div>
     <h3 style="margin-top:20px;">Features</h3>
-    <div class="row"><span class="k">Gentle difficulty ramp</span><span class="v">levels ease in gradually</span></div>
-    <div class="row"><span class="k">Soft glow trails</span><span class="v">a calm visual signature</span></div>
+    <div class="row"><span class="k">Gentle difficulty ramp</span><span class="v">levels ease in gradually, ball speed is capped</span></div>
+    <div class="row"><span class="k">Randomized bricks</span><span class="v">colors and toughness vary every wall</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">move/launch, Select returns to hub while paused</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -318,9 +329,15 @@
 "use strict";
 
 const BOARD_W = 360, BOARD_H = 420;
-const PADDLE_W = 64, PADDLE_H = 12, PADDLE_Y = BOARD_H - 26;
+const BASE_PADDLE_W = 64, PADDLE_H = 12, PADDLE_Y = BOARD_H - 26;
+const EXPAND_PADDLE_W = 96;
 const BALL_R = 6;
 const BRICK_ROWS = 5, BRICK_COLS = 8;
+const MAX_BALLS = 12;
+const EXPAND_DURATION = 12000;
+const MACHINEGUN_DURATION = 10000;
+const LASER_INTERVAL = 220;
+const BASE_BALL_SPEED = 175, MAX_BALL_SPEED = 260, LEVEL_SPEED_STEP = 6, PADDLE_HIT_SPEEDUP = 4;
 const BRICK_GAP = 5, BRICK_TOP = 40, BRICK_SIDE = 10;
 
 /* ============================= AUDIO ENGINE ============================= */
@@ -467,6 +484,12 @@ const Audio_ = (function(){
       const t = ctx.currentTime;
       [440,392,349.23,293.66].forEach((f,i)=> tone(t+i*0.18, f, 0.5, 'sine', 0.06));
     },
+    powerup(){
+      if(!sfxOn||!ctx) return;
+      const t = ctx.currentTime;
+      [440,554.37,659.25,880].forEach((f,i)=> playBellPublic(f, t+i*0.06, 0.08));
+    },
+    laser(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 700, 0.05, 'square', 0.025, 1100); },
     ui(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 600, 0.05, 'sine', 0.04); },
     pause(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 300, 0.09, 'triangle', 0.05, 220); }
   };
@@ -504,6 +527,20 @@ const CloudSync = (function(){
   }
   return { pull, push };
 })();
+
+/* ============================= INPUT MODE (nav vs pointer) ============================= */
+// Purely cosmetic: overlays get a heavier, more "immersive" blur behind them
+// when the person is steering with a keyboard or gamepad, vs. a lighter
+// touch when using a mouse or touch (where it would just get in the way).
+let navMode = false;
+function setNavMode(on){
+  if(navMode === on) return;
+  navMode = on;
+  document.body.classList.toggle('nav-mode', on);
+}
+window.addEventListener('mousemove', ()=> setNavMode(false));
+window.addEventListener('mousedown', ()=> setNavMode(false));
+window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
@@ -635,24 +672,42 @@ window.addEventListener('resize', computeLayout);
 window.addEventListener('orientationchange', ()=>setTimeout(computeLayout, 200));
 
 /* ============================= GAME STATE ============================= */
-const ROW_COLORS = ['#F2A7B0','#F2C48A','#B9A3E3','#9FE0B8','#8FD8E0'];
-let paddle, ball, bricks;
+const BRICK_PALETTE = ['#F2A7B0','#F2C48A','#B9A3E3','#9FE0B8','#8FD8E0','#E8C170','#7FE7C4','#c9b8f0'];
+const POWERUP_TYPES = ['triple','life','expand','gun','metal'];
+const POWERUP_LABEL = { triple:'x3', life:'+1', expand:'↔', gun:'MG', metal:'Fe' };
+const POWERUP_TOAST = {
+  triple: 'Triple ball!',
+  life: 'Extra life',
+  expand: 'Paddle expanded',
+  gun: 'Machine gun!',
+  metal: 'Metal ball'
+};
+
+let paddle, paddleWidth, balls, bricks, fallingPowerups, lasers;
 let score, highScore, lives, level, gameState, waitingForLaunch, combo;
+let expandUntil = 0, machineGunUntil = 0, laserTimer = 0;
 let moveLeft=false, moveRight=false, gpLeft=false, gpRight=false;
 
 function buildBricks(lvl){
   const list = [];
   const brickW = (BOARD_W - BRICK_SIDE*2 - BRICK_GAP*(BRICK_COLS-1)) / BRICK_COLS;
   const brickH = 16;
-  const toughRows = Math.min(2, Math.floor((lvl-1)/2));
+  const toughBias = Math.min(0.35, 0.14 + lvl*0.015);
   for(let r=0;r<BRICK_ROWS;r++){
     for(let c=0;c<BRICK_COLS;c++){
+      const roll = Math.random();
+      let hp = 1;
+      if(roll < toughBias*0.3) hp = 3;
+      else if(roll < toughBias) hp = 2;
+      const color = BRICK_PALETTE[Math.floor(Math.random()*BRICK_PALETTE.length)];
+      const powerupType = Math.random() < 0.11 ? POWERUP_TYPES[Math.floor(Math.random()*POWERUP_TYPES.length)] : null;
       list.push({
         x: BRICK_SIDE + c*(brickW+BRICK_GAP),
         y: BRICK_TOP + r*(brickH+BRICK_GAP),
         w: brickW, h: brickH,
         row: r,
-        hp: r < toughRows ? 2 : 1,
+        hp, maxHp: hp,
+        color, powerupType,
         alive: true
       });
     }
@@ -661,13 +716,17 @@ function buildBricks(lvl){
 }
 
 function resetPaddleAndBall(){
-  paddle = { x: BOARD_W/2 - PADDLE_W/2 };
-  ball = { x: BOARD_W/2, y: PADDLE_Y - BALL_R - 2, vx: 0, vy: 0 };
+  paddle = { x: BOARD_W/2 - paddleWidth/2 };
+  balls = [{ x: BOARD_W/2, y: PADDLE_Y - BALL_R - 2, vx: 0, vy: 0, metal:false }];
+  fallingPowerups = [];
+  lasers = [];
   waitingForLaunch = true;
 }
 
 function resetGame(){
   score = 0; lives = 3; level = 1; combo = 0;
+  paddleWidth = BASE_PADDLE_W;
+  expandUntil = 0; machineGunUntil = 0; laserTimer = 0;
   bricks = buildBricks(level);
   resetPaddleAndBall();
   updateHUD();
@@ -684,7 +743,8 @@ function updateHUD(){
 function renderLives(){
   const row = document.getElementById('livesRow');
   row.innerHTML = '';
-  for(let i=0;i<3;i++){
+  const total = Math.max(3, lives);
+  for(let i=0;i<total;i++){
     const dot = document.createElement('div');
     dot.className = 'life-dot' + (i < lives ? '' : ' spent');
     row.appendChild(dot);
@@ -702,66 +762,174 @@ function showToast(text){
 function launchBall(){
   if(!waitingForLaunch) return;
   waitingForLaunch = false;
-  const speed = 210 + (level-1)*14;
+  const speed = Math.min(MAX_BALL_SPEED, BASE_BALL_SPEED + (level-1)*LEVEL_SPEED_STEP);
   const angle = -Math.PI/2 + (Math.random()*0.6 - 0.3);
-  ball.vx = Math.cos(angle)*speed;
-  ball.vy = Math.sin(angle)*speed;
+  balls[0].vx = Math.cos(angle)*speed;
+  balls[0].vy = Math.sin(angle)*speed;
+}
+
+function tripleBall(b){
+  const speed = Math.hypot(b.vx, b.vy) || BASE_BALL_SPEED;
+  const baseAngle = Math.atan2(b.vy, b.vx);
+  return [-0.4, 0, 0.4].map(off => ({
+    x: b.x, y: b.y,
+    vx: Math.cos(baseAngle+off)*speed,
+    vy: Math.sin(baseAngle+off)*speed,
+    metal: b.metal
+  }));
+}
+
+function applyPowerup(type){
+  Audio_.sfx.powerup();
+  showToast(POWERUP_TOAST[type] || 'Power up!');
+  switch(type){
+    case 'triple':
+      if(balls.length * 3 <= MAX_BALLS){
+        balls = balls.flatMap(tripleBall);
+      } else {
+        // still triple as many as fit, oldest first
+        const room = Math.max(0, MAX_BALLS - balls.length);
+        const canTriple = Math.floor(room/2);
+        balls = balls.flatMap((b,i)=> i < canTriple ? tripleBall(b) : [b]);
+      }
+      break;
+    case 'life':
+      lives = Math.min(5, lives+1);
+      renderLives();
+      break;
+    case 'expand':
+      paddleWidth = EXPAND_PADDLE_W;
+      expandUntil = performance.now() + EXPAND_DURATION;
+      break;
+    case 'gun':
+      machineGunUntil = performance.now() + MACHINEGUN_DURATION;
+      break;
+    case 'metal':
+      balls.forEach(b=> b.metal = true);
+      break;
+  }
+  updateHUD();
 }
 
 /* ============================= UPDATE ============================= */
+function destroyBrick(b){
+  b.alive = false;
+  if(b.powerupType){
+    fallingPowerups.push({ x: b.x + b.w/2, y: b.y + b.h/2, vy: 90, type: b.powerupType });
+  }
+}
+
 function updateGame(dt){
   const sec = dt/1000;
   const speed = 300;
   const left = moveLeft||gpLeft, right = moveRight||gpRight;
   if(left) paddle.x -= speed*sec;
   if(right) paddle.x += speed*sec;
-  paddle.x = Math.max(4, Math.min(BOARD_W-PADDLE_W-4, paddle.x));
+  paddle.x = Math.max(4, Math.min(BOARD_W-paddleWidth-4, paddle.x));
+
+  const now = performance.now();
+  if(expandUntil && now > expandUntil){
+    expandUntil = 0;
+    paddleWidth = BASE_PADDLE_W;
+    paddle.x = Math.max(4, Math.min(BOARD_W-paddleWidth-4, paddle.x));
+  }
 
   if(waitingForLaunch){
-    ball.x = paddle.x + PADDLE_W/2;
-    ball.y = PADDLE_Y - BALL_R - 2;
+    balls[0].x = paddle.x + paddleWidth/2;
+    balls[0].y = PADDLE_Y - BALL_R - 2;
     return;
   }
 
-  ball.x += ball.vx*sec;
-  ball.y += ball.vy*sec;
-
-  if(ball.x - BALL_R < 0){ ball.x = BALL_R; ball.vx *= -1; Audio_.sfx.wallHit(); }
-  if(ball.x + BALL_R > BOARD_W){ ball.x = BOARD_W-BALL_R; ball.vx *= -1; Audio_.sfx.wallHit(); }
-  if(ball.y - BALL_R < 0){ ball.y = BALL_R; ball.vy *= -1; Audio_.sfx.wallHit(); }
-
-  // paddle collision
-  if(ball.vy > 0 && ball.y + BALL_R > PADDLE_Y && ball.y + BALL_R < PADDLE_Y + PADDLE_H + 12 &&
-     ball.x > paddle.x - BALL_R && ball.x < paddle.x + PADDLE_W + BALL_R){
-    ball.y = PADDLE_Y - BALL_R;
-    const rel = (ball.x - (paddle.x+PADDLE_W/2)) / (PADDLE_W/2);
-    const speedNow = Math.min(420, Math.hypot(ball.vx, ball.vy) * 1.01);
-    ball.vx = Math.sin(rel*1.2)*speedNow;
-    ball.vy = -Math.abs(Math.cos(rel*0.5))*speedNow;
-    combo = 0;
-    Audio_.sfx.paddleHit();
+  // machine gun: auto-fire lasers from the paddle while active
+  if(machineGunUntil && now < machineGunUntil){
+    laserTimer += dt;
+    if(laserTimer > LASER_INTERVAL){
+      laserTimer = 0;
+      lasers.push({ x: paddle.x + paddleWidth/2, y: PADDLE_Y - 4 });
+      Audio_.sfx.laser();
+    }
+  } else if(machineGunUntil && now >= machineGunUntil){
+    machineGunUntil = 0;
   }
 
-  // brick collisions
-  for(const b of bricks){
-    if(!b.alive) continue;
-    if(ball.x+BALL_R > b.x && ball.x-BALL_R < b.x+b.w && ball.y+BALL_R > b.y && ball.y-BALL_R < b.y+b.h){
-      b.hp--;
-      if(b.hp<=0) b.alive = false;
-      // determine bounce side by comparing penetration depths
-      const overlapX = Math.min(ball.x+BALL_R-b.x, b.x+b.w-(ball.x-BALL_R));
-      const overlapY = Math.min(ball.y+BALL_R-b.y, b.y+b.h-(ball.y-BALL_R));
-      if(overlapX < overlapY) ball.vx *= -1; else ball.vy *= -1;
-      combo++;
-      score += 10 * (b.row+1) * Math.max(1, Math.floor(combo/3));
-      Audio_.sfx.brickHit(combo);
-      updateHUD();
-      break;
+  // lasers travel up and chip away at the first brick they touch
+  for(let i=lasers.length-1;i>=0;i--){
+    const l = lasers[i];
+    l.y -= 480*sec;
+    if(l.y < -10){ lasers.splice(i,1); continue; }
+    for(const b of bricks){
+      if(!b.alive) continue;
+      if(l.x > b.x && l.x < b.x+b.w && l.y > b.y && l.y < b.y+b.h){
+        b.hp--;
+        if(b.hp<=0) destroyBrick(b);
+        combo++;
+        score += 6 * (b.row+1);
+        Audio_.sfx.brickHit(combo);
+        updateHUD();
+        lasers.splice(i,1);
+        break;
+      }
     }
   }
 
-  // ball falls below paddle
-  if(ball.y - BALL_R > BOARD_H){
+  // falling powerup capsules
+  for(let i=fallingPowerups.length-1;i>=0;i--){
+    const p = fallingPowerups[i];
+    p.y += p.vy*sec;
+    if(p.y - BALL_R > PADDLE_Y + PADDLE_H + 20){ fallingPowerups.splice(i,1); continue; }
+    if(p.y+10 > PADDLE_Y && p.x > paddle.x && p.x < paddle.x+paddleWidth){
+      applyPowerup(p.type);
+      fallingPowerups.splice(i,1);
+    }
+  }
+
+  // balls
+  for(let i=balls.length-1;i>=0;i--){
+    const ball = balls[i];
+    ball.x += ball.vx*sec;
+    ball.y += ball.vy*sec;
+
+    if(ball.x - BALL_R < 0){ ball.x = BALL_R; ball.vx *= -1; Audio_.sfx.wallHit(); }
+    if(ball.x + BALL_R > BOARD_W){ ball.x = BOARD_W-BALL_R; ball.vx *= -1; Audio_.sfx.wallHit(); }
+    if(ball.y - BALL_R < 0){ ball.y = BALL_R; ball.vy *= -1; Audio_.sfx.wallHit(); }
+
+    // paddle collision — small additive speed nudge, capped, so a long rally
+    // never spirals into an unplayable blur.
+    if(ball.vy > 0 && ball.y + BALL_R > PADDLE_Y && ball.y + BALL_R < PADDLE_Y + PADDLE_H + 12 &&
+       ball.x > paddle.x - BALL_R && ball.x < paddle.x + paddleWidth + BALL_R){
+      ball.y = PADDLE_Y - BALL_R;
+      const rel = (ball.x - (paddle.x+paddleWidth/2)) / (paddleWidth/2);
+      const speedNow = Math.min(MAX_BALL_SPEED, Math.hypot(ball.vx, ball.vy) + PADDLE_HIT_SPEEDUP);
+      ball.vx = Math.sin(rel*1.2)*speedNow;
+      ball.vy = -Math.abs(Math.cos(rel*0.5))*speedNow;
+      combo = 0;
+      Audio_.sfx.paddleHit();
+    }
+
+    // brick collisions — metal balls plow straight through instead of bouncing
+    for(const b of bricks){
+      if(!b.alive) continue;
+      if(ball.x+BALL_R > b.x && ball.x-BALL_R < b.x+b.w && ball.y+BALL_R > b.y && ball.y-BALL_R < b.y+b.h){
+        b.hp--;
+        if(b.hp<=0) destroyBrick(b);
+        if(!ball.metal){
+          const overlapX = Math.min(ball.x+BALL_R-b.x, b.x+b.w-(ball.x-BALL_R));
+          const overlapY = Math.min(ball.y+BALL_R-b.y, b.y+b.h-(ball.y-BALL_R));
+          if(overlapX < overlapY) ball.vx *= -1; else ball.vy *= -1;
+        }
+        combo++;
+        score += 10 * (b.row+1) * Math.max(1, Math.floor(combo/3));
+        Audio_.sfx.brickHit(combo);
+        updateHUD();
+        if(!ball.metal) break;
+      }
+    }
+
+    if(ball.y - BALL_R > BOARD_H) balls.splice(i,1);
+  }
+
+  // lost the last ball on screen
+  if(balls.length === 0){
     lives--;
     renderLives();
     combo = 0;
@@ -769,6 +937,7 @@ function updateGame(dt){
     if(lives<=0){ return endGame(); }
     showToast('Steady now');
     resetPaddleAndBall();
+    return;
   }
 
   // level clear
@@ -812,43 +981,83 @@ function drawBoard(){
 
   bricks.forEach(b=>{
     if(!b.alive) return;
-    const color = ROW_COLORS[b.row % ROW_COLORS.length];
     boardCtx.save();
-    boardCtx.globalAlpha = b.hp>1 ? 1 : 0.85;
-    boardCtx.shadowColor = color;
+    boardCtx.globalAlpha = b.hp < b.maxHp ? 0.85 : 1;
+    boardCtx.shadowColor = b.color;
     boardCtx.shadowBlur = 6;
-    boardCtx.fillStyle = color;
+    boardCtx.fillStyle = b.color;
     roundRect(boardCtx, b.x, b.y, b.w, b.h, 4);
     boardCtx.fill();
-    if(b.hp>1){
+    if(b.maxHp>1){
       boardCtx.strokeStyle = 'rgba(16,17,42,0.4)';
       boardCtx.lineWidth = 2;
       roundRect(boardCtx, b.x+2, b.y+2, b.w-4, b.h-4, 3);
       boardCtx.stroke();
     }
+    if(b.powerupType){
+      boardCtx.fillStyle = 'rgba(255,255,255,0.85)';
+      boardCtx.beginPath();
+      boardCtx.arc(b.x+b.w-6, b.y+6, 2.6, 0, Math.PI*2);
+      boardCtx.fill();
+    }
+    boardCtx.restore();
+  });
+
+  // falling powerup capsules
+  fallingPowerups.forEach(p=>{
+    boardCtx.save();
+    boardCtx.shadowColor = '#E8C170';
+    boardCtx.shadowBlur = 8;
+    boardCtx.fillStyle = 'rgba(232,193,112,0.92)';
+    roundRect(boardCtx, p.x-14, p.y-10, 28, 20, 8);
+    boardCtx.fill();
+    boardCtx.fillStyle = '#10112a';
+    boardCtx.font = 'bold 10px Manrope, sans-serif';
+    boardCtx.textAlign = 'center';
+    boardCtx.textBaseline = 'middle';
+    boardCtx.fillText(POWERUP_LABEL[p.type]||'?', p.x, p.y+1);
+    boardCtx.restore();
+  });
+
+  // lasers
+  lasers.forEach(l=>{
+    boardCtx.save();
+    boardCtx.shadowColor = '#F2A7B0';
+    boardCtx.shadowBlur = 6;
+    boardCtx.fillStyle = '#F2A7B0';
+    roundRect(boardCtx, l.x-1.5, l.y-8, 3, 12, 1.5);
+    boardCtx.fill();
     boardCtx.restore();
   });
 
   // paddle
   boardCtx.save();
-  boardCtx.shadowColor = '#7FE7C4';
+  boardCtx.shadowColor = expandUntil ? '#E8C170' : '#7FE7C4';
   boardCtx.shadowBlur = 10;
   const grad = boardCtx.createLinearGradient(paddle.x, PADDLE_Y, paddle.x, PADDLE_Y+PADDLE_H);
-  grad.addColorStop(0, '#c9f3e7'); grad.addColorStop(1, '#7FE7C4');
+  if(expandUntil){ grad.addColorStop(0, '#f7e6bd'); grad.addColorStop(1, '#E8C170'); }
+  else { grad.addColorStop(0, '#c9f3e7'); grad.addColorStop(1, '#7FE7C4'); }
   boardCtx.fillStyle = grad;
-  roundRect(boardCtx, paddle.x, PADDLE_Y, PADDLE_W, PADDLE_H, 6);
+  roundRect(boardCtx, paddle.x, PADDLE_Y, paddleWidth, PADDLE_H, 6);
   boardCtx.fill();
   boardCtx.restore();
 
-  // ball
-  boardCtx.save();
-  boardCtx.shadowColor = '#F5EFE0';
-  boardCtx.shadowBlur = 10;
-  boardCtx.fillStyle = '#F5EFE0';
-  boardCtx.beginPath();
-  boardCtx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
-  boardCtx.fill();
-  boardCtx.restore();
+  // balls
+  balls.forEach(ball=>{
+    boardCtx.save();
+    boardCtx.shadowColor = ball.metal ? '#B9A3E3' : '#F5EFE0';
+    boardCtx.shadowBlur = 10;
+    boardCtx.fillStyle = ball.metal ? '#cbb9ee' : '#F5EFE0';
+    boardCtx.beginPath();
+    boardCtx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
+    boardCtx.fill();
+    if(ball.metal){
+      boardCtx.strokeStyle = 'rgba(16,17,42,0.4)';
+      boardCtx.lineWidth = 1.4;
+      boardCtx.stroke();
+    }
+    boardCtx.restore();
+  });
 
   if(waitingForLaunch && gameState==='running'){
     boardCtx.save();
@@ -878,11 +1087,16 @@ function pollGamepad(){
   const axisX = gp.axes[0] || 0;
   gpLeft = GamepadNav.held(gp, 14) || axisX < -GamepadNav.DEADZONE;
   gpRight = GamepadNav.held(gp, 15) || axisX > GamepadNav.DEADZONE;
-  if(GamepadNav.justPressed(gp, 9)) togglePause(); // Start/Menu
+  if(gpLeft || gpRight) setNavMode(true);
+  if(GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // Start/Menu
   if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 1)){ // A / B
+    setNavMode(true);
     if(gameState==='idle' || gameState==='over') startGame();
     else if(gameState==='running') launchBall();
     else if(gameState==='paused') togglePause();
+  }
+  if(gameState==='paused' && GamepadNav.justPressed(gp, 8)){ // Select — only while paused
+    window.location.href = '../index.html';
   }
 }
 
@@ -890,6 +1104,7 @@ function pollGamepad(){
 window.addEventListener('keydown', e=>{
   if(['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
+  setNavMode(true);
   switch(e.key){
     case 'ArrowLeft': case 'a': case 'A': moveLeft = true; break;
     case 'ArrowRight': case 'd': case 'D': moveRight = true; break;
@@ -932,7 +1147,7 @@ boardWrap.addEventListener('touchmove', e=>{
   if(!touching || gameState!=='running') return;
   const t = e.touches[0];
   const dx = (t.clientX - touchLastX) / scale;
-  paddle.x = Math.max(4, Math.min(BOARD_W-PADDLE_W-4, paddle.x + dx));
+  paddle.x = Math.max(4, Math.min(BOARD_W-paddleWidth-4, paddle.x + dx));
   touchLastX = t.clientX;
 }, {passive:true});
 boardWrap.addEventListener('touchend', ()=>{ touching=false; }, {passive:true});

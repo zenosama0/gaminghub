@@ -159,6 +159,10 @@
     z-index:5;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
+  body.nav-mode .overlay{
+    backdrop-filter:blur(11px);
+    background:rgba(9,10,22,0.5);
+  }
   .overlay h2{ font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon); }
   .overlay p{margin:0;color:var(--text-dim);font-size:13px;max-width:280px;}
   .btn{
@@ -267,7 +271,7 @@
         <div class="stat-value small" id="highScoreVal">—</div>
       </div>
       <div class="hint-block">
-        <div style="margin-bottom:6px;">Tap two cards to reveal them</div>
+        <div style="margin-bottom:6px;">Tap, click, or arrow keys + Enter</div>
         <div style="margin-bottom:6px;">Matching pairs stay face up</div>
         <div><kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute</div>
       </div>
@@ -332,7 +336,7 @@
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Three sizes</span><span class="v">Easy, Medium, Hard</span></div>
     <div class="row"><span class="k">No timer</span><span class="v">just a quiet, unhurried game</span></div>
-    <div class="row"><span class="k">Gamepad support</span><span class="v">d-pad navigation, A to flip</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">d-pad to move/flip, Select returns to hub while paused</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -541,15 +545,37 @@ const CloudSync = (function(){
   return { pull, push };
 })();
 
+/* ============================= INPUT MODE (nav vs pointer) ============================= */
+// The card focus ring should only show up when steering with a keyboard or
+// gamepad — not with a mouse or touch, where hover/tap already do the job.
+let navMode = false;
+function setNavMode(on){
+  if(navMode === on) return;
+  navMode = on;
+  document.body.classList.toggle('nav-mode', on);
+  if(!on) updateGpFocusRing();
+}
+window.addEventListener('mousemove', ()=> setNavMode(false));
+window.addEventListener('mousedown', ()=> setNavMode(false));
+window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
+
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
   let padIndex = null;
+  let blocked = false;
   const prevButtons = {};
   const DEADZONE = 0.5;
   window.addEventListener('gamepadconnected', e=>{ padIndex = e.gamepad.index; });
   window.addEventListener('gamepaddisconnected', e=>{ if(padIndex===e.gamepad.index) padIndex=null; });
   function poll(){
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    if(blocked || !navigator.getGamepads) return null;
+    let pads;
+    try{
+      pads = navigator.getGamepads();
+    } catch {
+      blocked = true; // e.g. blocked by a Permissions-Policy header when embedded
+      return null;
+    }
     if(padIndex===null){
       for(const p of pads){ if(p){ padIndex = p.index; break; } }
     }
@@ -729,37 +755,61 @@ function renderBoard(){
 }
 
 function updateGpFocusRing(){
-  cards.forEach((c,i)=> c.el && c.el.classList.toggle('gp-focused', i===gpFocusIndex));
+  cards.forEach((c,i)=> c.el && c.el.classList.toggle('gp-focused', navMode && i===gpFocusIndex));
+}
+
+function cycleMode(dir){
+  const keys = Object.keys(MODES);
+  const idx = keys.indexOf(currentMode);
+  const next = keys[(idx + dir + keys.length) % keys.length];
+  currentMode = next;
+  syncModeButtons();
+  localStorage.setItem('amem_mode', currentMode);
+  Audio_.sfx.ui();
+  updateHUD();
+  if(document.getElementById('overlayStart').classList.contains('visible')) computeLayout();
 }
 
 function pollGamepad(){
   const gp = GamepadNav.poll();
   if(!gp) return;
 
-  if(gameState==='running' && cards.length){
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
+  const axisY = GamepadNav.justAxis('y', gp.axes[1]||0);
+  const left = GamepadNav.justPressed(gp, 14) || axisX < 0;
+  const right = GamepadNav.justPressed(gp, 15) || axisX > 0;
+  const up = GamepadNav.justPressed(gp, 12) || axisY < 0;
+  const down = GamepadNav.justPressed(gp, 13) || axisY > 0;
+
+  if(gameState==='running' && !overlayPauseVisible && cards.length){
     const cols = MODES[currentMode].cols;
-    const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
-    const axisY = GamepadNav.justAxis('y', gp.axes[1]||0);
-    const left = GamepadNav.justPressed(gp, 14) || axisX < 0;
-    const right = GamepadNav.justPressed(gp, 15) || axisX > 0;
-    const up = GamepadNav.justPressed(gp, 12) || axisY < 0;
-    const down = GamepadNav.justPressed(gp, 13) || axisY > 0;
     let moved = false;
     if(left && gpFocusIndex % cols > 0){ gpFocusIndex--; moved = true; }
     if(right && gpFocusIndex % cols < cols-1 && gpFocusIndex+1 < cards.length){ gpFocusIndex++; moved = true; }
     if(up && gpFocusIndex - cols >= 0){ gpFocusIndex -= cols; moved = true; }
     if(down && gpFocusIndex + cols < cards.length){ gpFocusIndex += cols; moved = true; }
-    if(moved){ updateGpFocusRing(); Audio_.sfx.ui(); }
+    if(moved){ setNavMode(true); updateGpFocusRing(); Audio_.sfx.ui(); }
     if(GamepadNav.justPressed(gp, 0)){ // A
       const card = cards[gpFocusIndex];
       if(card) onCardClick(card, card.el);
     }
-  } else {
-    // On an overlay: A/Start triggers the visible primary button.
-    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){
-      if(document.getElementById('overlayStart').classList.contains('visible')) startGame();
-      else if(document.getElementById('overlayGameOver').classList.contains('visible')) startGame();
-      else if(document.getElementById('overlayPause').classList.contains('visible')) togglePause();
+  } else if(overlayStartVisible || overlayOverVisible){
+    // On the start / game-over overlay: d-pad left-right cycles difficulty.
+    if(left){ setNavMode(true); cycleMode(-1); }
+    if(right){ setNavMode(true); cycleMode(1); }
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ // A / Start
+      startGame();
+    }
+  } else if(overlayPauseVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ // A / Start
+      togglePause();
+    }
+    if(GamepadNav.justPressed(gp, 8)){ // Select — only acts while paused
+      window.location.href = '../index.html';
     }
   }
   if(gameState==='running' && GamepadNav.justPressed(gp, 9)) togglePause(); // Start/Menu
@@ -843,6 +893,47 @@ function startGame(){
   renderBoard();
   updateHUD();
   Audio_.init();
+}
+
+window.addEventListener('keydown', e=>{
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+
+  if(overlayStartVisible || overlayOverVisible){
+    if(e.key==='ArrowLeft'){ setNavMode(true); cycleMode(-1); return; }
+    if(e.key==='ArrowRight'){ setNavMode(true); cycleMode(1); return; }
+    if(e.key==='Enter' || e.key===' '){ startGame(); return; }
+  }
+
+  if(gameState==='running' && cards.length){
+    const cols = MODES[currentMode].cols;
+    let moved = false;
+    if(e.key==='ArrowLeft' && gpFocusIndex % cols > 0){ gpFocusIndex--; moved = true; }
+    if(e.key==='ArrowRight' && gpFocusIndex % cols < cols-1 && gpFocusIndex+1 < cards.length){ gpFocusIndex++; moved = true; }
+    if(e.key==='ArrowUp' && gpFocusIndex - cols >= 0){ gpFocusIndex -= cols; moved = true; }
+    if(e.key==='ArrowDown' && gpFocusIndex + cols < cards.length){ gpFocusIndex += cols; moved = true; }
+    if(moved){ setNavMode(true); updateGpFocusRing(); Audio_.sfx.ui(); return; }
+    if(e.key==='Enter' || e.key===' '){
+      const card = cards[gpFocusIndex];
+      if(card) onCardClick(card, card.el);
+      return;
+    }
+  }
+
+  switch(e.key){
+    case 'p': case 'P': case 'Escape': togglePause(); break;
+    case 'm': case 'M': toggleMusicQuick(); break;
+  }
+});
+
+function toggleMusicQuick(){
+  const sw = document.getElementById('toggleMusic');
+  sw.classList.toggle('on');
+  const on = sw.classList.contains('on');
+  Audio_.setMusicOn(on);
+  localStorage.setItem('amem_music_on', on?'1':'0');
 }
 
 /* ============================= UI WIRING ============================= */
