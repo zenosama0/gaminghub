@@ -418,6 +418,13 @@
     font-size:12px;
     letter-spacing:0.5px;
   }
+  footer a{
+    color:var(--mist);
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  footer a:hover{ color:var(--ice); }
+  .footer-sep{ margin:0 6px; opacity:0.5; }
 
   @media (max-width:560px){
     header{ flex-direction:column; align-items:flex-start; gap:14px; }
@@ -520,7 +527,11 @@
     <div class="grid" id="grid"></div>
   </main>
 
-  <footer>Game Hub — built for easy expansion · gamepad supported on this page and select games</footer>
+  <footer>
+    Game Hub — built for easy expansion · gamepad supported on this page and select games
+    <span class="footer-sep">·</span>
+    <a href="terms.html">Terms &amp; Privacy</a>
+  </footer>
 </div>
 
 <script>
@@ -567,6 +578,7 @@
   const grid = document.getElementById("grid");
   const search = document.getElementById("search");
   let gpFocusIndex = 0;
+  let navMode = false; // true once steering with keyboard/gamepad; false again on mouse/touch
 
   function playIconSVG(){
     return '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
@@ -626,7 +638,6 @@
   // The focus highlight on game tiles should only show up when the person is
   // steering with a keyboard or gamepad — not when they're using a mouse or
   // touch, where hover states already do that job.
-  let navMode = false;
   function setNavMode(on){
     if(navMode === on) return;
     navMode = on;
@@ -636,9 +647,6 @@
   window.addEventListener('mousemove', ()=> setNavMode(false));
   window.addEventListener('mousedown', ()=> setNavMode(false));
   window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
-  window.addEventListener('keydown', e=>{
-    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '].includes(e.key)) setNavMode(true);
-  });
 
   /* ============================= GAMEPAD SUPPORT ============================= */
   const GamepadNav = (function(){
@@ -690,7 +698,9 @@
     const cards = currentCards();
     cards.forEach((c,i)=> c.classList.toggle('gp-focused', navMode && i===gpFocusIndex));
     if(navMode && cards[gpFocusIndex]){
-      cards[gpFocusIndex].scrollIntoView({ block:'nearest', behavior:'smooth' });
+      if(typeof cards[gpFocusIndex].scrollIntoView === 'function'){
+        cards[gpFocusIndex].scrollIntoView({ block:'nearest', behavior:'smooth' });
+      }
     }
   }
 
@@ -706,17 +716,21 @@
     if(moved){ setNavMode(true); updateGpFocus(); }
   }
 
+  const NAV_KEYS = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','w','W','a','A','s','S','d','D','Enter',' '];
   window.addEventListener('keydown', e=>{
     if(document.activeElement === search) return; // typing in search shouldn't steer the grid
+    if(!NAV_KEYS.includes(e.key)) return;
+    e.preventDefault(); // stop the page itself from scrolling on arrow keys / space
+    setNavMode(true);
     switch(e.key){
-      case 'ArrowLeft': moveFocus(-1,0); break;
-      case 'ArrowRight': moveFocus(1,0); break;
-      case 'ArrowUp': moveFocus(0,-1); break;
-      case 'ArrowDown': moveFocus(0,1); break;
+      case 'ArrowLeft': case 'a': case 'A': moveFocus(-1,0); break;
+      case 'ArrowRight': case 'd': case 'D': moveFocus(1,0); break;
+      case 'ArrowUp': case 'w': case 'W': moveFocus(0,-1); break;
+      case 'ArrowDown': case 's': case 'S': moveFocus(0,1); break;
       case 'Enter': case ' ': {
         const cards = currentCards();
         const card = cards[gpFocusIndex];
-        if(card && navMode){ e.preventDefault(); window.location.href = card.getAttribute('href'); }
+        if(card) window.location.href = card.getAttribute('href');
         break;
       }
     }
@@ -733,6 +747,7 @@
       const right = GamepadNav.justPressed(gp, 15) || axisX > 0;
       const up = GamepadNav.justPressed(gp, 12) || axisY < 0;
       const down = GamepadNav.justPressed(gp, 13) || axisY > 0;
+      if(left || right || up || down) setNavMode(true);
       if(left) moveFocus(-1,0);
       if(right) moveFocus(1,0);
       if(up) moveFocus(0,-1);
@@ -741,6 +756,13 @@
         const card = cards[gpFocusIndex];
         if(card) window.location.href = card.getAttribute('href');
       }
+    }
+    // Right stick scrolls the page — held, not edge-triggered, so it scrolls
+    // smoothly for as long as it's deflected.
+    const rightStickY = gp.axes[3] || 0;
+    if(Math.abs(rightStickY) > 0.15){
+      window.scrollBy(0, rightStickY * 16);
+      setNavMode(true);
     }
     requestAnimationFrame(pollGamepadNav);
   }

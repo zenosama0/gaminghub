@@ -70,15 +70,25 @@ works fine without it.
 
 ## Gamepad support
 A standard USB/Bluetooth gamepad (Xbox/PlayStation-style layout) works on
-this hub page, Tetris, Pong, Memory Match, and Breakout.
+this hub page and every game: Tetris, Snake, 2048, Space Invaders, Pong,
+Memory Match, and Breakout. Keyboard also works fully everywhere — you
+can play any of these end to end without ever touching a mouse.
 
-- **This hub page** — d-pad/left-stick (or arrow keys) moves a highlight
-  across the game tiles, **A**/Enter opens the highlighted game. The
-  highlight only appears once you touch the keyboard or a gamepad — move
-  the mouse and it disappears again, since hover already does that job.
+- **This hub page** — d-pad/left-stick (or arrow keys/WASD) moves a
+  highlight across the game tiles, **A**/Enter opens the highlighted
+  game, right stick scrolls the page. The highlight only appears once
+  you touch the keyboard or a gamepad — move the mouse and it
+  disappears again, since hover already does that job.
 - **Tetris** — d-pad/left-stick moves, **A** or d-pad-up rotates
   clockwise, **B** rotates counter-clockwise, **X** holds, **Y** hard
   drops, d-pad-down soft-drops, **Start** pauses.
+- **Snake** — d-pad/left-stick steers, d-pad left/right cycles pace
+  (Calm/Steady/Swift/Turbo) and up/down toggles Wall/Portal edges on the
+  start and game-over screens, **A**/**Start** begins or resumes.
+- **2048** — d-pad/left-stick slides tiles, **A**/**Start** begins or
+  resumes.
+- **Space Invaders** — d-pad/left-stick moves, **A**/**B** fires,
+  **Start** pauses.
 - **Pong** — d-pad/left-stick moves your paddle, d-pad left/right cycles
   pace (Calm/Steady/Swift) on the start and game-over screens, **A**/**B**
   starts or resumes, **Start** pauses.
@@ -102,6 +112,17 @@ controller — just press any button once connected and these pages pick
 it up. If a site embeds these pages in an iframe with gamepad access
 blocked, they quietly fall back to keyboard/touch instead of erroring.
 
+## Snake: Wall vs Portal edges
+Snake now has an edge-mode toggle right next to the pace picker, on both
+the start and game-over screens:
+- **Wall** (default) — the classic rules; touching the border ends the run.
+- **Portal** — touching any edge wraps the snake out the opposite side
+  instead of ending the run, with a faint lavender glow around the board
+  as a reminder it's active.
+
+Switch it with the on-screen buttons, arrow-key up/down, or gamepad
+up/down while either overlay is showing.
+
 ## Breakout power-ups
 Certain bricks (about 1 in 9) drop a falling capsule when destroyed —
 catch it with your paddle:
@@ -112,12 +133,18 @@ catch it with your paddle:
 - **Expand** — a wider paddle for about 12 seconds.
 - **Machine gun** — the paddle auto-fires upward for about 10 seconds,
   chipping away at bricks it hits.
-- **Metal ball** — plows straight through bricks instead of bouncing off
-  them, until that ball is eventually lost.
+- **Metal ball** — plows straight through ordinary bricks without
+  bouncing, but tougher (multi-hit) bricks still stop it: it destroys
+  them in one shot and ricochets off, same as a normal ball would.
 
 Bricks themselves now come in random colors independent of their
 toughness — a brick's color no longer tells you how many hits it needs;
-watch the hit-count border instead. Ball speed still ramps up with a
+watch the hit-count border instead. Levels are dynamic too: the layout
+rotates through several patterns (checkerboard, pyramid, diamond, rings,
+and more) and gains extra rows every few levels, capped well short of
+the paddle so it never becomes unfair even dozens of levels in. Ball
+speed still ramps up with a long rally, but gently and with a hard cap,
+so it stays playable instead of spiraling out of control.
 long rally, but gently and with a hard cap, so it stays playable instead
 of spiraling out of control.
 

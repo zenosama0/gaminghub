@@ -90,6 +90,11 @@
     background:linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
     border:1px solid var(--line);
     box-shadow:0 30px 70px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    transition:box-shadow .3s ease, border-color .3s ease;
+  }
+  .board-wrap.portal-mode{
+    border-color:rgba(185,163,227,0.45);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,0.6), 0 0 0 2px rgba(185,163,227,0.28), 0 0 24px rgba(185,163,227,0.18);
   }
   #board{
     display:block;border-radius:10px;
@@ -102,6 +107,10 @@
     flex-direction:column;gap:14px;text-align:center;padding:20px;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
+  body.nav-mode .overlay{
+    backdrop-filter:blur(11px);
+    background:rgba(9,10,22,0.5);
+  }
   .overlay h2{ font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon); }
   .overlay p{margin:0;color:var(--text-dim);font-size:13px;max-width:280px;}
   .btn{
@@ -127,6 +136,9 @@
     color:#10112a; border-color:transparent;
   }
   .mode-btn:active{transform:scale(0.95);}
+  .edge-row{ display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .edge-label{ font-size:11px; color:var(--text-dimmer); text-transform:uppercase; letter-spacing:0.8px; margin-right:2px; }
+  .edge-btn.active{ background:linear-gradient(135deg, var(--lavender), var(--rose)); }
   .toast{
     position:absolute;top:14px;left:50%;transform:translate(-50%,-8px);
     font-family:'Fraunces',serif;font-weight:600;font-size:15px;letter-spacing:0.5px;
@@ -269,6 +281,11 @@
           <button class="mode-btn" data-mode="swift">Swift</button>
           <button class="mode-btn" data-mode="turbo">Turbo</button>
         </div>
+        <div class="edge-row" id="edgeRow">
+          <span class="edge-label">Edges</span>
+          <button class="mode-btn edge-btn active" data-edge="wall">Wall</button>
+          <button class="mode-btn edge-btn" data-edge="portal">Portal</button>
+        </div>
         <button class="btn" id="btnStart">Begin</button>
       </div>
 
@@ -286,6 +303,11 @@
           <button class="mode-btn" data-mode="steady">Steady</button>
           <button class="mode-btn" data-mode="swift">Swift</button>
           <button class="mode-btn" data-mode="turbo">Turbo</button>
+        </div>
+        <div class="edge-row" id="edgeRowOver">
+          <span class="edge-label">Edges</span>
+          <button class="mode-btn edge-btn" data-edge="wall">Wall</button>
+          <button class="mode-btn edge-btn" data-edge="portal">Portal</button>
         </div>
         <button class="btn" id="btnRestart">Play again</button>
       </div>
@@ -320,13 +342,16 @@
 <div class="modal-back" id="infoModalBack">
   <div class="modal">
     <h3>How to play</h3>
-    <div class="row"><span class="k">Steer</span><span class="v">Arrow keys / WASD / D-pad / swipe</span></div>
+    <div class="row"><span class="k">Steer</span><span class="v">Arrow keys / WASD / D-pad / swipe / gamepad</span></div>
     <div class="row"><span class="k">Grow</span><span class="v">Guide the snake over the fruit</span></div>
-    <div class="row"><span class="k">Avoid</span><span class="v">Walls and your own tail</span></div>
-    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the centre D-pad button</span></div>
+    <div class="row"><span class="k">Avoid</span><span class="v">Walls (or your own tail, always)</span></div>
+    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, centre D-pad button, or gamepad Start</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Calm pace</span><span class="v">speed eases in slowly</span></div>
+    <div class="row"><span class="k">Wall or Portal edges</span><span class="v">choose whether edges end the run or wrap you to the other side</span></div>
     <div class="row"><span class="k">Soft trail glow</span><span class="v">a gentle visual signature</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">full control scheme, see above</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two runs sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -519,6 +544,79 @@ const Audio_ = (function(){
   };
 })();
 
+/* ============================= GAMEPAD SUPPORT ============================= */
+const GamepadNav = (function(){
+  let padIndex = null;
+  let blocked = false;
+  const prevButtons = {};
+  const DEADZONE = 0.4;
+  window.addEventListener('gamepadconnected', e=>{ padIndex = e.gamepad.index; });
+  window.addEventListener('gamepaddisconnected', e=>{ if(padIndex===e.gamepad.index) padIndex=null; });
+  function poll(){
+    if(blocked || !navigator.getGamepads) return null;
+    let pads;
+    try{
+      pads = navigator.getGamepads();
+    } catch {
+      blocked = true; // e.g. blocked by a Permissions-Policy header when embedded
+      return null;
+    }
+    if(padIndex===null){
+      for(const p of pads){ if(p){ padIndex = p.index; break; } }
+    }
+    return padIndex!==null ? pads[padIndex] : null;
+  }
+  function justPressed(gp, i){
+    const now = !!(gp.buttons[i] && gp.buttons[i].pressed);
+    const was = !!prevButtons[i];
+    prevButtons[i] = now;
+    return now && !was;
+  }
+  function justAxis(key, value){
+    const now = value > DEADZONE ? 1 : value < -DEADZONE ? -1 : 0;
+    const was = prevButtons[key] || 0;
+    prevButtons[key] = now;
+    return now !== 0 && now !== was ? now : 0;
+  }
+  return { poll, justPressed, justAxis, DEADZONE };
+})();
+
+function pollGamepad(){
+  const gp = GamepadNav.poll();
+  if(!gp) return;
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
+  const axisY = GamepadNav.justAxis('y', gp.axes[1]||0);
+  const left = GamepadNav.justPressed(gp, 14) || axisX < 0;
+  const right = GamepadNav.justPressed(gp, 15) || axisX > 0;
+  const up = GamepadNav.justPressed(gp, 12) || axisY < 0;
+  const down = GamepadNav.justPressed(gp, 13) || axisY > 0;
+  if(left || right || up || down) setNavMode(true);
+
+  if(overlayStartVisible || overlayOverVisible){
+    if(left) cycleMode(-1);
+    if(right) cycleMode(1);
+    if(up || down) toggleEdgeMode();
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); Audio_.init(); startGame(); } // A / Start
+    return;
+  }
+  if(overlayPauseVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    return;
+  }
+
+  if(left) setDir(-1,0);
+  if(right) setDir(1,0);
+  if(up) setDir(0,-1);
+  if(down) setDir(0,1);
+  if(GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // Start
+}
+
 /* ============================= BACKGROUND AURORA ============================= */
 const bgCanvas = document.getElementById('bgCanvas');
 const bgCtx = bgCanvas.getContext('2d');
@@ -628,6 +726,7 @@ const MODES = {
   turbo:  { label:'Turbo',  start:85,  min:40,  speedup:6 }
 };
 let currentMode = 'steady';
+let currentEdgeMode = 'wall'; // 'wall' ends the run · 'portal' wraps to the opposite side
 
 function resetGame(){
   const cx = Math.floor(COLS/2), cy = Math.floor(ROWS/2);
@@ -686,9 +785,17 @@ function step(){
     dir = pendingDir;
   }
   const head = snake[snake.length-1];
-  const nx = head.x + dir.x, ny = head.y + dir.y;
+  let nx = head.x + dir.x, ny = head.y + dir.y;
 
-  if(nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS){ return endGame(); }
+  const hitWall = nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS;
+  if(hitWall){
+    if(currentEdgeMode === 'portal'){
+      nx = (nx + COLS) % COLS;
+      ny = (ny + ROWS) % ROWS;
+    } else {
+      return endGame();
+    }
+  }
   if(snake.some((s,i)=> i>0 && s.x===nx && s.y===ny)){ return endGame(); }
 
   snake.push({x:nx,y:ny});
@@ -784,6 +891,7 @@ function loop(t){
   const dt = Math.min(50, t-lastTime); lastTime = t;
   trailGlowPhase += dt/1000;
   drawBg(dt/1000);
+  pollGamepad();
   if(gameState==='running'){
     stepTimer += dt;
     if(stepTimer > stepInterval){
@@ -796,6 +904,20 @@ function loop(t){
 }
 
 /* ============================= INPUT ============================= */
+/* ============================= INPUT MODE (nav vs pointer) ============================= */
+// Purely cosmetic: overlays get a heavier, more "immersive" blur behind them
+// when the person is steering with a keyboard or gamepad, vs. a lighter
+// touch when using a mouse or touch (where it would just get in the way).
+let navMode = false;
+function setNavMode(on){
+  if(navMode === on) return;
+  navMode = on;
+  document.body.classList.toggle('nav-mode', on);
+}
+window.addEventListener('mousemove', ()=> setNavMode(false));
+window.addEventListener('mousedown', ()=> setNavMode(false));
+window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
+
 function setDir(x,y){
   if(gameState!=='running') return;
   pendingDir = {x,y};
@@ -803,7 +925,21 @@ function setDir(x,y){
 }
 window.addEventListener('keydown', e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
-  if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
+  if(gameState==='idle' && !['p','P','Escape','m','M','Enter',' ','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
+  setNavMode(true);
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  if(overlayStartVisible || overlayOverVisible){
+    if(e.key==='ArrowLeft'){ cycleMode(-1); return; }
+    if(e.key==='ArrowRight'){ cycleMode(1); return; }
+    if(e.key==='ArrowUp' || e.key==='ArrowDown'){ toggleEdgeMode(); return; }
+    if(e.key==='Enter' || e.key===' '){ Audio_.init(); startGame(); return; }
+  }
+  if(overlayPauseVisible && (e.key==='Enter' || e.key===' ')){ togglePause(); return; }
+
   switch(e.key){
     case 'ArrowLeft': case 'a': case 'A': setDir(-1,0); break;
     case 'ArrowRight': case 'd': case 'D': setDir(1,0); break;
@@ -922,21 +1058,46 @@ function loadAudioPrefs(){
 function syncModeButtons(){
   document.querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===currentMode));
 }
-document.getElementById('modeRow').addEventListener('click', e=>{
-  const btn = e.target.closest('.mode-btn');
-  if(!btn) return;
-  currentMode = btn.dataset.mode;
+function setMode(mode){
+  currentMode = mode;
   syncModeButtons();
   localStorage.setItem('as_mode', currentMode);
   Audio_.sfx.ui();
+}
+function cycleMode(dir){
+  const keys = Object.keys(MODES);
+  const idx = keys.indexOf(currentMode);
+  setMode(keys[(idx + dir + keys.length) % keys.length]);
+}
+document.getElementById('modeRow').addEventListener('click', e=>{
+  const btn = e.target.closest('.mode-btn');
+  if(btn) setMode(btn.dataset.mode);
 });
 document.getElementById('modeRowOver').addEventListener('click', e=>{
   const btn = e.target.closest('.mode-btn');
-  if(!btn) return;
-  currentMode = btn.dataset.mode;
-  syncModeButtons();
-  localStorage.setItem('as_mode', currentMode);
+  if(btn) setMode(btn.dataset.mode);
+});
+
+function syncEdgeButtons(){
+  document.querySelectorAll('.edge-btn').forEach(b=> b.classList.toggle('active', b.dataset.edge===currentEdgeMode));
+  document.querySelector('.board-wrap').classList.toggle('portal-mode', currentEdgeMode==='portal');
+}
+function setEdgeMode(mode){
+  currentEdgeMode = mode;
+  syncEdgeButtons();
+  localStorage.setItem('as_edge', currentEdgeMode);
   Audio_.sfx.ui();
+}
+function toggleEdgeMode(){
+  setEdgeMode(currentEdgeMode==='wall' ? 'portal' : 'wall');
+}
+document.getElementById('edgeRow').addEventListener('click', e=>{
+  const btn = e.target.closest('.edge-btn');
+  if(btn) setEdgeMode(btn.dataset.edge);
+});
+document.getElementById('edgeRowOver').addEventListener('click', e=>{
+  const btn = e.target.closest('.edge-btn');
+  if(btn) setEdgeMode(btn.dataset.edge);
 });
 
 /* ============================= START / RESTART ============================= */
@@ -958,6 +1119,11 @@ if(savedMode && MODES[savedMode]){
   currentMode = savedMode;
 }
 syncModeButtons();
+const savedEdge = localStorage.getItem('as_edge');
+if(savedEdge === 'wall' || savedEdge === 'portal'){
+  currentEdgeMode = savedEdge;
+}
+syncEdgeButtons();
 resetGame();
 document.getElementById('highScoreVal').textContent = highScore.toLocaleString();
 loadAudioPrefs();

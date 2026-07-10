@@ -297,10 +297,11 @@
     <div class="row"><span class="k">✦ Extra life</span><span class="v">one more chance, up to five</span></div>
     <div class="row"><span class="k">✦ Expand</span><span class="v">a wider paddle for a little while</span></div>
     <div class="row"><span class="k">✦ Machine gun</span><span class="v">the paddle fires upward for 10 seconds</span></div>
-    <div class="row"><span class="k">✦ Metal ball</span><span class="v">plows through bricks instead of bouncing</span></div>
+    <div class="row"><span class="k">✦ Metal ball</span><span class="v">plows through 1-hit bricks; one-shots tougher ones but ricochets off</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Gentle difficulty ramp</span><span class="v">levels ease in gradually, ball speed is capped</span></div>
     <div class="row"><span class="k">Randomized bricks</span><span class="v">colors and toughness vary every wall</span></div>
+    <div class="row"><span class="k">Dynamic levels</span><span class="v">rotating layouts, more rows as you climb</span></div>
     <div class="row"><span class="k">Gamepad support</span><span class="v">move/launch, Select returns to hub while paused</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
@@ -688,20 +689,49 @@ let score, highScore, lives, level, gameState, waitingForLaunch, combo;
 let expandUntil = 0, machineGunUntil = 0, laserTimer = 0;
 let moveLeft=false, moveRight=false, gpLeft=false, gpRight=false;
 
+const MAX_BRICK_ROWS = 8; // hard cap so no level can ever grow into the paddle's space
+
+// Each layout decides whether a given (row, col) slot holds a brick.
+// All of them are written to degrade gracefully at any rows/cols count,
+// and buildBricks() has a fallback in case one ever produces zero bricks.
+const LEVEL_LAYOUTS = [
+  function full(){ return true; },
+  function checkerboard(r,c){ return (r+c) % 2 === 0; },
+  function pyramid(r,c,rows,cols){
+    const half = (cols-1)/2;
+    const allowed = half * (1 - r/rows) + 1;
+    return Math.abs(c-half) <= allowed;
+  },
+  function diamond(r,c,rows,cols){
+    const rHalf = (rows-1)/2, cHalf = (cols-1)/2;
+    const dist = Math.abs(r-rHalf)/Math.max(rHalf,1) + Math.abs(c-cHalf)/Math.max(cHalf,1);
+    return dist <= 1.15;
+  },
+  function columns(r,c){ return c % 3 !== 1; },
+  function stripes(r){ return r % 2 === 0; },
+  function ring(r,c,rows,cols){ return r===0 || r===rows-1 || c===0 || c===cols-1; },
+  function brickWall(r,c){ return (c + (r % 2)) % 2 === 0; }
+];
+
 function buildBricks(lvl){
-  const list = [];
-  const brickW = (BOARD_W - BRICK_SIDE*2 - BRICK_GAP*(BRICK_COLS-1)) / BRICK_COLS;
+  const rows = Math.min(MAX_BRICK_ROWS, BRICK_ROWS + Math.floor((lvl-1)/4));
+  const cols = BRICK_COLS;
+  const brickW = (BOARD_W - BRICK_SIDE*2 - BRICK_GAP*(cols-1)) / cols;
   const brickH = 16;
   const toughBias = Math.min(0.35, 0.14 + lvl*0.015);
-  for(let r=0;r<BRICK_ROWS;r++){
-    for(let c=0;c<BRICK_COLS;c++){
+  const layout = LEVEL_LAYOUTS[(lvl-1) % LEVEL_LAYOUTS.length];
+
+  function makeRow(r){
+    const rowBricks = [];
+    for(let c=0;c<cols;c++){
+      if(!layout(r,c,rows,cols)) continue;
       const roll = Math.random();
       let hp = 1;
       if(roll < toughBias*0.3) hp = 3;
       else if(roll < toughBias) hp = 2;
       const color = BRICK_PALETTE[Math.floor(Math.random()*BRICK_PALETTE.length)];
       const powerupType = Math.random() < 0.11 ? POWERUP_TYPES[Math.floor(Math.random()*POWERUP_TYPES.length)] : null;
-      list.push({
+      rowBricks.push({
         x: BRICK_SIDE + c*(brickW+BRICK_GAP),
         y: BRICK_TOP + r*(brickH+BRICK_GAP),
         w: brickW, h: brickH,
@@ -710,6 +740,32 @@ function buildBricks(lvl){
         color, powerupType,
         alive: true
       });
+    }
+    return rowBricks;
+  }
+
+  let list = [];
+  for(let r=0;r<rows;r++) list = list.concat(makeRow(r));
+
+  // Safety net: however unlikely, never ship a level with no bricks at all —
+  // fall back to a plain full grid so the game can never get stuck. (The
+  // layout functions are deterministic, so retrying the same one would just
+  // reproduce the same empty result — build a guaranteed-full grid instead.)
+  if(list.length === 0){
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const roll = Math.random();
+        let hp = 1;
+        if(roll < toughBias*0.3) hp = 3;
+        else if(roll < toughBias) hp = 2;
+        list.push({
+          x: BRICK_SIDE + c*(brickW+BRICK_GAP), y: BRICK_TOP + r*(brickH+BRICK_GAP),
+          w: brickW, h: brickH, row: r, hp, maxHp: hp,
+          color: BRICK_PALETTE[Math.floor(Math.random()*BRICK_PALETTE.length)],
+          powerupType: Math.random() < 0.11 ? POWERUP_TYPES[Math.floor(Math.random()*POWERUP_TYPES.length)] : null,
+          alive: true
+        });
+      }
     }
   }
   return list;
@@ -906,13 +962,21 @@ function updateGame(dt){
       Audio_.sfx.paddleHit();
     }
 
-    // brick collisions — metal balls plow straight through instead of bouncing
+    // brick collisions — metal balls plow straight through 1-hit bricks,
+    // but still one-shot (and ricochet off) anything tougher.
     for(const b of bricks){
       if(!b.alive) continue;
       if(ball.x+BALL_R > b.x && ball.x-BALL_R < b.x+b.w && ball.y+BALL_R > b.y && ball.y-BALL_R < b.y+b.h){
-        b.hp--;
+        const metalVsTough = ball.metal && b.maxHp > 1;
+        if(metalVsTough){
+          b.hp = 0; // one-shot regardless of remaining hp
+        } else {
+          b.hp--;
+        }
         if(b.hp<=0) destroyBrick(b);
-        if(!ball.metal){
+
+        const passesThrough = ball.metal && !metalVsTough;
+        if(!passesThrough){
           const overlapX = Math.min(ball.x+BALL_R-b.x, b.x+b.w-(ball.x-BALL_R));
           const overlapY = Math.min(ball.y+BALL_R-b.y, b.y+b.h-(ball.y-BALL_R));
           if(overlapX < overlapY) ball.vx *= -1; else ball.vy *= -1;
@@ -921,7 +985,7 @@ function updateGame(dt){
         score += 10 * (b.row+1) * Math.max(1, Math.floor(combo/3));
         Audio_.sfx.brickHit(combo);
         updateHUD();
-        if(!ball.metal) break;
+        if(!passesThrough) break;
       }
     }
 

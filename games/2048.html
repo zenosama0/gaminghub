@@ -123,6 +123,10 @@
     z-index:5;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
+  body.nav-mode .overlay{
+    backdrop-filter:blur(11px);
+    background:rgba(9,10,22,0.5);
+  }
   .overlay h2{ font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon); }
   .overlay p{margin:0;color:var(--text-dim);font-size:13px;max-width:280px;}
   .btn{
@@ -317,13 +321,15 @@
 <div class="modal-back" id="infoModalBack">
   <div class="modal">
     <h3>How to play</h3>
-    <div class="row"><span class="k">Slide</span><span class="v">Arrow keys / WASD / D-pad / swipe</span></div>
+    <div class="row"><span class="k">Slide</span><span class="v">Arrow keys / WASD / D-pad / swipe / gamepad</span></div>
     <div class="row"><span class="k">Merge</span><span class="v">Two equal tiles combine into one</span></div>
     <div class="row"><span class="k">Goal</span><span class="v">Reach 2048 — or just keep going</span></div>
-    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the centre D-pad button</span></div>
+    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, centre D-pad button, or gamepad Start</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Smooth slide & merge animation</span><span class="v">satisfying motion</span></div>
     <div class="row"><span class="k">Undo-free, save-free calm</span><span class="v">just the tiles, no pressure</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">full control scheme, see above</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two runs sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -509,6 +515,75 @@ const Audio_ = (function(){
     sfx: SFX
   };
 })();
+
+/* ============================= GAMEPAD SUPPORT ============================= */
+const GamepadNav = (function(){
+  let padIndex = null;
+  let blocked = false;
+  const prevButtons = {};
+  const DEADZONE = 0.4;
+  window.addEventListener('gamepadconnected', e=>{ padIndex = e.gamepad.index; });
+  window.addEventListener('gamepaddisconnected', e=>{ if(padIndex===e.gamepad.index) padIndex=null; });
+  function poll(){
+    if(blocked || !navigator.getGamepads) return null;
+    let pads;
+    try{
+      pads = navigator.getGamepads();
+    } catch {
+      blocked = true; // e.g. blocked by a Permissions-Policy header when embedded
+      return null;
+    }
+    if(padIndex===null){
+      for(const p of pads){ if(p){ padIndex = p.index; break; } }
+    }
+    return padIndex!==null ? pads[padIndex] : null;
+  }
+  function justPressed(gp, i){
+    const now = !!(gp.buttons[i] && gp.buttons[i].pressed);
+    const was = !!prevButtons[i];
+    prevButtons[i] = now;
+    return now && !was;
+  }
+  function justAxis(key, value){
+    const now = value > DEADZONE ? 1 : value < -DEADZONE ? -1 : 0;
+    const was = prevButtons[key] || 0;
+    prevButtons[key] = now;
+    return now !== 0 && now !== was ? now : 0;
+  }
+  return { poll, justPressed, justAxis };
+})();
+
+function pollGamepad(){
+  const gp = GamepadNav.poll();
+  if(!gp) return;
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  if(overlayStartVisible || overlayOverVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); Audio_.init(); startGame(); } // A / Start
+    return;
+  }
+  if(overlayPauseVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    return;
+  }
+
+  const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
+  const axisY = GamepadNav.justAxis('y', gp.axes[1]||0);
+  const left = GamepadNav.justPressed(gp, 14) || axisX < 0;
+  const right = GamepadNav.justPressed(gp, 15) || axisX > 0;
+  const up = GamepadNav.justPressed(gp, 12) || axisY < 0;
+  const down = GamepadNav.justPressed(gp, 13) || axisY > 0;
+  if(left || right || up || down) setNavMode(true);
+  if(left) move(-1,0);
+  if(right) move(1,0);
+  if(up) move(0,-1);
+  if(down) move(0,1);
+  if(GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // Start
+}
 
 /* ============================= BACKGROUND AURORA ============================= */
 const bgCanvas = document.getElementById('bgCanvas');
@@ -825,9 +900,32 @@ function renderTiles(){
 }
 
 /* ============================= INPUT ============================= */
+/* ============================= INPUT MODE (nav vs pointer) ============================= */
+// Purely cosmetic: overlays get a heavier, more "immersive" blur behind them
+// when the person is steering with a keyboard or gamepad, vs. a lighter
+// touch when using a mouse or touch (where it would just get in the way).
+let navMode = false;
+function setNavMode(on){
+  if(navMode === on) return;
+  navMode = on;
+  document.body.classList.toggle('nav-mode', on);
+}
+window.addEventListener('mousemove', ()=> setNavMode(false));
+window.addEventListener('mousedown', ()=> setNavMode(false));
+window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
+
 window.addEventListener('keydown', e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
-  if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
+  if(gameState==='idle' && !['p','P','Escape','m','M','Enter',' '].includes(e.key)) return;
+  setNavMode(true);
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  if((overlayStartVisible || overlayOverVisible) && (e.key==='Enter' || e.key===' ')){ Audio_.init(); startGame(); return; }
+  if(overlayPauseVisible && (e.key==='Enter' || e.key===' ')){ togglePause(); return; }
+
   switch(e.key){
     case 'ArrowLeft': case 'a': case 'A': move(-1,0); break;
     case 'ArrowRight': case 'd': case 'D': move(1,0); break;
@@ -969,6 +1067,7 @@ let lastBgTime = 0;
 requestAnimationFrame(function loop(t){
   const dt = Math.min(50, t-lastBgTime); lastBgTime = t;
   drawBg(dt/1000);
+  pollGamepad();
   requestAnimationFrame(loop);
 });
 

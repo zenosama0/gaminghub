@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms & Privacy — Game Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#05070d;
+    --bg-deep:#0a1120;
+    --panel:rgba(255,255,255,0.045);
+    --panel-border:rgba(255,255,255,0.09);
+    --ice:#eef3fb;
+    --mist:#8fa0bb;
+    --ps-blue:#3ea6ff;
+    --ps-blue-2:#7b5cff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{
+    background:var(--bg-void);
+    color:var(--ice);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .aurora{
+    position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 8%, rgba(62,166,255,0.14), transparent 60%),
+      radial-gradient(ellipse 55% 45% at 90% 15%, rgba(123,92,255,0.12), transparent 60%),
+      linear-gradient(180deg, var(--bg-void) 0%, var(--bg-deep) 55%, var(--bg-void) 100%);
+  }
+  .shell{ position:relative; z-index:1; max-width:760px; margin:0 auto; padding:48px 24px 80px; }
+  a.back{
+    display:inline-flex; align-items:center; gap:8px;
+    color:var(--mist); text-decoration:none; font-size:13px; font-weight:600;
+    margin-bottom:28px;
+  }
+  a.back:hover{ color:var(--ice); }
+  h1{
+    font-family:'Titillium Web',sans-serif; font-weight:900; font-size:clamp(28px,4vw,40px);
+    margin-bottom:6px;
+  }
+  .updated{ color:var(--mist); font-size:13px; margin-bottom:36px; }
+  .callout{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:14px;
+    padding:18px 20px; margin-bottom:36px; font-size:14px; color:var(--mist); line-height:1.6;
+  }
+  .callout strong{ color:var(--ice); }
+  h2{
+    font-family:'Titillium Web',sans-serif; font-weight:700; font-size:19px;
+    margin:36px 0 12px; color:var(--ice);
+  }
+  p, li{ color:var(--mist); font-size:14.5px; line-height:1.7; }
+  p{ margin-bottom:14px; }
+  ul{ margin:0 0 14px 20px; }
+  li{ margin-bottom:6px; }
+  strong{ color:var(--ice); }
+  code{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:5px;
+    padding:1px 6px; font-size:13px; color:var(--ice);
+  }
+  footer{ margin-top:56px; padding-top:24px; border-top:1px solid var(--panel-border); color:var(--mist); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="aurora"></div>
+<div class="shell">
+  <a class="back" href="index.html">← Back to Game Hub</a>
+  <h1>Terms & Privacy</h1>
+  <div class="updated">A plain-language explanation, not a wall of legalese.</div>
+
+  <div class="callout">
+    <strong>The short version:</strong> this is a small, self-hosted game hub. If you create
+    an account, we store your username, a securely hashed password (or your Google account
+    link, if you use that instead), whatever display name/bio/avatar you choose to add, and
+    your high scores. We don't sell your data, run ads, or share it with anyone except Google
+    itself when you choose to sign in with Google. There's no analytics or tracking beyond
+    what's needed to keep you signed in.
+  </div>
+
+  <h2>1. What this site is</h2>
+  <p>
+    Game Hub is a small collection of browser games with an optional account system so your
+    profile, avatar, and high scores can follow you across devices. It's run on Netlify, and
+    account data is stored using Netlify's built-in storage (Netlify Blobs) — there's no
+    separate company or third-party database behind it.
+  </p>
+
+  <h2>2. Creating an account</h2>
+  <p>You can either:</p>
+  <ul>
+    <li>Sign up with a <strong>username and password</strong>, or</li>
+    <li>Sign in with <strong>Google</strong>, which shares your name, email, and profile picture with this site so it can create a matching profile automatically.</li>
+  </ul>
+  <p>
+    Passwords are never stored in plain text — they're hashed with a random salt (scrypt)
+    before being saved, so even the site operator can't read your actual password.
+  </p>
+
+  <h2>3. What we store</h2>
+  <ul>
+    <li><strong>Credentials:</strong> your username, and a salted password hash (username/password accounts only)</li>
+    <li><strong>Profile:</strong> display name, bio, and avatar image, if you choose to set them</li>
+    <li><strong>Scores:</strong> your saved high score per game</li>
+    <li><strong>Google accounts:</strong> the name, email, and profile picture Google shares at sign-in, used only to create and recognize your profile</li>
+  </ul>
+  <p>We don't store payment information, precise location, or anything beyond what's listed above.</p>
+
+  <h2>4. What we don't do</h2>
+  <ul>
+    <li>No ads, ad tracking, or ad networks</li>
+    <li>No selling or sharing your data with third parties</li>
+    <li>No analytics beyond what Netlify itself may log for hosting purposes (e.g. basic server logs)</li>
+  </ul>
+
+  <h2>5. Your choices</h2>
+  <p>
+    You can stop using the site at any time. If you'd like your account data removed, contact
+    whoever operates this particular deployment of Game Hub — since this is self-hosted
+    software, the site operator (not the original developer of this template) is responsible
+    for handling that request.
+  </p>
+
+  <h2>6. Acceptable use</h2>
+  <ul>
+    <li>Don't impersonate someone else or use a misleading display name/avatar</li>
+    <li>Don't upload illegal, abusive, or harmful images as your avatar</li>
+    <li>Don't attempt to break, exploit, or overload the sign-in or scoring system</li>
+  </ul>
+
+  <h2>7. No warranty</h2>
+  <p>
+    This is a small hobby-style project provided as-is, with no uptime guarantee and no
+    warranty of any kind. High scores and profiles are stored in good faith but not
+    guaranteed to be preserved forever.
+  </p>
+
+  <h2>8. Changes</h2>
+  <p>
+    This page may be updated as the site changes. Continuing to use the site after an update
+    means you accept the current version.
+  </p>
+
+  <div class="callout">
+    This page is a plain, good-faith summary — not legal advice, and not reviewed by a
+    lawyer. If you're deploying this for a large audience or a commercial product, it's
+    worth having an actual privacy policy and terms of service drafted for your situation.
+  </div>
+
+  <footer>Game Hub — Terms & Privacy</footer>
+</div>
+</body>
+</html>
