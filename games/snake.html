@@ -352,6 +352,7 @@
     <div class="row"><span class="k">Wall or Portal edges</span><span class="v">choose whether edges end the run or wrap you to the other side</span></div>
     <div class="row"><span class="k">Soft trail glow</span><span class="v">a gentle visual signature</span></div>
     <div class="row"><span class="k">Gamepad support</span><span class="v">full control scheme, see above</span></div>
+    <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA toggles invincibility</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two runs sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -543,6 +544,22 @@ const Audio_ = (function(){
     sfx: SFX
   };
 })();
+
+/* ============================= CHEAT CODE ============================= */
+// Classic Konami code — enter it any time during play to toggle the cheat.
+const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let cheatBuffer = [];
+let cheatActive = false;
+function checkCheatCode(key){
+  cheatBuffer.push(key.length===1 ? key.toLowerCase() : key);
+  if(cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
+  if(cheatBuffer.length === CHEAT_SEQUENCE.length && cheatBuffer.every((k,i)=>k===CHEAT_SEQUENCE[i])){
+    cheatActive = !cheatActive;
+    cheatBuffer = [];
+    showToast(cheatActive ? '✦ Invincible' : '✦ Invincibility off');
+    Audio_.sfx.milestone();
+  }
+}
 
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
@@ -789,14 +806,14 @@ function step(){
 
   const hitWall = nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS;
   if(hitWall){
-    if(currentEdgeMode === 'portal'){
+    if(currentEdgeMode === 'portal' || cheatActive){
       nx = (nx + COLS) % COLS;
       ny = (ny + ROWS) % ROWS;
     } else {
       return endGame();
     }
   }
-  if(snake.some((s,i)=> i>0 && s.x===nx && s.y===ny)){ return endGame(); }
+  if(!cheatActive && snake.some((s,i)=> i>0 && s.x===nx && s.y===ny)){ return endGame(); }
 
   snake.push({x:nx,y:ny});
 
@@ -870,10 +887,12 @@ function drawBoard(){
     const isHead = i === n-1;
     boardCtx.save();
     boardCtx.globalAlpha = alpha;
-    boardCtx.shadowColor = isHead ? '#7FE7C4' : 'rgba(127,231,196,0.5)';
+    boardCtx.shadowColor = cheatActive ? '#E8C170' : (isHead ? '#7FE7C4' : 'rgba(127,231,196,0.5)');
     boardCtx.shadowBlur = isHead ? cell*0.5 : cell*0.2;
     const grad = boardCtx.createLinearGradient(seg.x*cell, seg.y*cell, seg.x*cell, seg.y*cell+cell);
-    if(isHead){
+    if(cheatActive){
+      grad.addColorStop(0,'#f7e6bd'); grad.addColorStop(1,'#E8C170');
+    } else if(isHead){
       grad.addColorStop(0,'#c9f3e7'); grad.addColorStop(1,'#7FE7C4');
     } else {
       grad.addColorStop(0,'#9FE0B8'); grad.addColorStop(1,'#6bc9a3');
@@ -924,6 +943,7 @@ function setDir(x,y){
   Audio_.sfx.turn();
 }
 window.addEventListener('keydown', e=>{
+  if(!e.repeat) checkCheatCode(e.key);
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
   if(gameState==='idle' && !['p','P','Escape','m','M','Enter',' ','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
   setNavMode(true);

@@ -145,8 +145,37 @@ and more) and gains extra rows every few levels, capped well short of
 the paddle so it never becomes unfair even dozens of levels in. Ball
 speed still ramps up with a long rally, but gently and with a hard cap,
 so it stays playable instead of spiraling out of control.
-long rally, but gently and with a hard cap, so it stays playable instead
-of spiraling out of control.
+
+## Pong: opponent difficulty
+Pong's AI no longer tracks the ball with perfect precision — it "glances"
+at the ball periodically rather than continuously, aims with some
+imprecision, and drifts back toward center when the ball's headed the
+other way, so it reads more like a person than a tracking algorithm.
+Separate from the pace picker (Calm/Steady/Swift, which sets overall
+speed), a new **Opponent** picker sets how sharp it actually plays:
+- **Easy** — noticeably beatable, good for a relaxed match.
+- **Normal** — a real but fair challenge.
+- **Hard** — sharp and fast; rare mistakes, not zero.
+
+## Cheat codes
+Six of the seven games support the classic Konami code —
+**↑ ↑ ↓ ↓ ← → ← → B A** — entered any time during play (keyboard only).
+A toast confirms it activated. Each game gets an effect that actually
+fits it, rather than the same cheat pasted everywhere:
+
+| Game | Effect |
+|---|---|
+| Breakout | Infinite lives (toggle) |
+| Space Invaders | Infinite lives (toggle) |
+| Snake | Invincibility — wraps at edges and passes through itself (toggle) |
+| Tetris | Clears the board instead of topping out (toggle) |
+| Pong | Mega paddle — player paddle grows ~1.8x (toggle) |
+| Memory Match | Briefly peeks at every card (one-shot, not a toggle) |
+
+**2048 doesn't get one.** Its whole challenge is managing the board with
+only merges — spawning a free high-value tile or similar would just
+remove the puzzle rather than add a fun bypass, so it's left alone
+instead of bolting on a cheat that undermines the game.
 
 ## Adding a new game
 1. Drop your game's HTML file into `games/`.

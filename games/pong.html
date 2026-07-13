@@ -77,7 +77,8 @@
   .stat-label{ font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:4px; }
   .stat-value{ font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:var(--moon);letter-spacing:0.5px; }
   .stat-value.small{font-size:18px;}
-  .mode-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .mode-row{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; align-items:center; }
+  .edge-label{ font-size:11px; color:var(--text-dimmer); text-transform:uppercase; letter-spacing:0.8px; margin-right:2px; }
   .mode-btn{
     font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.3px;
     text-transform:uppercase;background:var(--panel-strong);color:var(--text-dim);
@@ -262,6 +263,12 @@
           <button class="mode-btn active" data-mode="steady">Steady</button>
           <button class="mode-btn" data-mode="swift">Swift</button>
         </div>
+        <div class="mode-row" id="diffRow" style="margin-top:8px;">
+          <span class="edge-label">Opponent</span>
+          <button class="mode-btn" data-diff="easy">Easy</button>
+          <button class="mode-btn active" data-diff="normal">Normal</button>
+          <button class="mode-btn" data-diff="hard">Hard</button>
+        </div>
         <button class="btn" id="btnStart">Begin</button>
       </div>
 
@@ -279,6 +286,12 @@
           <button class="mode-btn" data-mode="steady">Steady</button>
           <button class="mode-btn" data-mode="swift">Swift</button>
         </div>
+        <div class="mode-row" id="diffRowOver" style="margin-top:8px;">
+          <span class="edge-label">Opponent</span>
+          <button class="mode-btn" data-diff="easy">Easy</button>
+          <button class="mode-btn" data-diff="normal">Normal</button>
+          <button class="mode-btn" data-diff="hard">Hard</button>
+        </div>
         <button class="btn" id="btnRestart">Play again</button>
       </div>
     </div>
@@ -293,7 +306,7 @@
         <div class="stat-value small" id="rallyVal">0</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>A gentle AI opponent meets the ball at a steady pace — quick enough to keep things interesting, calm enough to stay relaxing.</div>
+        <div>An AI opponent that plays like it's actually watching the ball — pick Easy, Normal, or Hard to match how much of a challenge you're after.</div>
       </div>
     </div>
   </main>
@@ -312,7 +325,9 @@
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the centre mobile button</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Three paces</span><span class="v">Calm, Steady, Swift</span></div>
-    <div class="row"><span class="k">Gamepad support</span><span class="v">left stick / d-pad to move, d-pad L/R to change pace, Select returns to hub while paused</span></div>
+    <div class="row"><span class="k">Opponent difficulty</span><span class="v">Easy, Normal, Hard — changes how sharp the AI's aim and reactions are</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">left stick / d-pad to move, d-pad L/R changes pace, d-pad U/D changes difficulty, Select returns to hub while paused</span></div>
+    <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA toggles a mega paddle</span></div>
     <div class="row"><span class="k">Soft glow trail</span><span class="v">a calm visual signature</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rallies sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
@@ -531,6 +546,24 @@ window.addEventListener('mousemove', ()=> setNavMode(false));
 window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
+/* ============================= CHEAT CODE ============================= */
+// Classic Konami code — enter it any time during play to toggle the cheat.
+const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let cheatBuffer = [];
+let cheatActive = false;
+function checkCheatCode(key){
+  cheatBuffer.push(key.length===1 ? key.toLowerCase() : key);
+  if(cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
+  if(cheatBuffer.length === CHEAT_SEQUENCE.length && cheatBuffer.every((k,i)=>k===CHEAT_SEQUENCE[i])){
+    cheatActive = !cheatActive;
+    cheatBuffer = [];
+    playerPaddleH = cheatActive ? PADDLE_H*1.8 : PADDLE_H;
+    player.y = Math.max(0, Math.min(BOARD_H-playerPaddleH, player.y));
+    showToast(cheatActive ? '✦ Mega paddle on' : '✦ Mega paddle off');
+    Audio_.sfx.matchEnd(true);
+  }
+}
+
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
   let padIndex = null;
@@ -674,16 +707,33 @@ const MODES = {
 };
 let currentMode = 'steady';
 
+// AI difficulty is a separate axis from pace: pace sets how fast the whole
+// match feels, difficulty sets how sharp the opponent actually plays. The
+// AI only "decides" on a fresh aim point every decisionMs (like a person
+// glancing at the ball rather than tracking it continuously), and each
+// decision has some aim error — both get tighter as difficulty goes up.
+const AI_DIFFICULTY = {
+  easy:   { label:'Easy',   speedMul:0.52, decisionMs:450, error:58 },
+  normal: { label:'Normal', speedMul:0.72, decisionMs:260, error:40 },
+  hard:   { label:'Hard',   speedMul:0.92, decisionMs:140, error:28 }
+};
+let aiDifficulty = 'normal';
+let aiTargetY = null;
+let aiDecisionTimer = 9999;
+
 let player, opponent, ball;
 let score, oppScore, highScore, longestRally, rally, targetScore;
 let gameState;
 let moveUp=false, moveDown=false, gpUp=false, gpDown=false;
+let playerPaddleH = PADDLE_H; // grows with the mega-paddle cheat
 
 function resetMatch(){
-  player = { y: BOARD_H/2 - PADDLE_H/2 };
+  player = { y: BOARD_H/2 - playerPaddleH/2 };
   opponent = { y: BOARD_H/2 - PADDLE_H/2 };
   score = 0; oppScore = 0; rally = 0; longestRally = 0;
   targetScore = 7;
+  aiTargetY = null;
+  aiDecisionTimer = 9999;
   spawnBall(Math.random()<0.5 ? 1 : -1);
   updateHUD();
 }
@@ -720,12 +770,24 @@ function updateGame(dt){
   const speed = 260;
   if(moveUp||gpUp) player.y -= speed*sec;
   if(moveDown||gpDown) player.y += speed*sec;
-  player.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, player.y));
+  player.y = Math.max(0, Math.min(BOARD_H-playerPaddleH, player.y));
 
-  // simple AI: track ball with capped speed, slight easing
-  const aiSpeed = MODES[currentMode].aiSpeed;
-  const targetY = ball.y - PADDLE_H/2;
-  const diff = targetY - opponent.y;
+  // AI: only re-aims periodically (like a glance, not continuous tracking),
+  // with some imprecision each time — both loosen up on Easy and tighten on
+  // Hard. When the ball's headed away, it just drifts back toward center.
+  const diffCfg = AI_DIFFICULTY[aiDifficulty];
+  const aiSpeed = MODES[currentMode].aiSpeed * diffCfg.speedMul;
+  const approaching = ball.vx > 0;
+
+  aiDecisionTimer += dt;
+  if(aiDecisionTimer > diffCfg.decisionMs || aiTargetY === null){
+    aiDecisionTimer = 0;
+    const err = (Math.random()*2 - 1) * diffCfg.error;
+    aiTargetY = approaching
+      ? ball.y - PADDLE_H/2 + err
+      : BOARD_H/2 - PADDLE_H/2 + err*0.5;
+  }
+  const diff = aiTargetY - opponent.y;
   const maxStep = aiSpeed*sec;
   opponent.y += Math.max(-maxStep, Math.min(maxStep, diff));
   opponent.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, opponent.y));
@@ -739,9 +801,9 @@ function updateGame(dt){
   // player paddle (left side, x = 16)
   const playerX = 16;
   if(ball.vx < 0 && ball.x - BALL_R < playerX + PADDLE_W && ball.x - BALL_R > playerX - 10 &&
-     ball.y > player.y - BALL_R && ball.y < player.y + PADDLE_H + BALL_R){
+     ball.y > player.y - BALL_R && ball.y < player.y + playerPaddleH + BALL_R){
     ball.x = playerX + PADDLE_W + BALL_R;
-    const rel = (ball.y - (player.y+PADDLE_H/2)) / (PADDLE_H/2);
+    const rel = (ball.y - (player.y+playerPaddleH/2)) / (playerPaddleH/2);
     const speedNow = Math.hypot(ball.vx, ball.vy) * 1.04;
     ball.vx = Math.abs(Math.cos(rel*0.5))*speedNow;
     ball.vy = Math.sin(rel*0.9)*speedNow;
@@ -823,10 +885,10 @@ function drawBoard(){
 
   // paddles
   boardCtx.save();
-  boardCtx.shadowColor = '#7FE7C4';
+  boardCtx.shadowColor = cheatActive ? '#E8C170' : '#7FE7C4';
   boardCtx.shadowBlur = 10;
-  boardCtx.fillStyle = '#7FE7C4';
-  roundRect(boardCtx, 16, player.y, PADDLE_W, PADDLE_H, 4);
+  boardCtx.fillStyle = cheatActive ? '#E8C170' : '#7FE7C4';
+  roundRect(boardCtx, 16, player.y, PADDLE_W, playerPaddleH, 4);
   boardCtx.fill();
   boardCtx.restore();
 
@@ -876,6 +938,9 @@ function pollGamepad(){
     const axisX = GamepadNav.justAxis('x', gp.axes[0]||0);
     if(GamepadNav.justPressed(gp, 14) || axisX < 0){ setNavMode(true); cycleMode(-1); }
     if(GamepadNav.justPressed(gp, 15) || axisX > 0){ setNavMode(true); cycleMode(1); }
+    const axisYEdge = GamepadNav.justAxis('y', gp.axes[1]||0);
+    if(GamepadNav.justPressed(gp, 12) || axisYEdge < 0){ setNavMode(true); cycleDifficulty(-1); }
+    if(GamepadNav.justPressed(gp, 13) || axisYEdge > 0){ setNavMode(true); cycleDifficulty(1); }
   }
 
   if(GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // Start/Menu
@@ -891,14 +956,17 @@ function pollGamepad(){
 
 /* ============================= INPUT ============================= */
 window.addEventListener('keydown', e=>{
+  if(!e.repeat) checkCheatCode(e.key);
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-  if(gameState==='idle' && !['p','P','Escape','m','M','ArrowLeft','ArrowRight'].includes(e.key)) return;
+  if(gameState==='idle' && !['p','P','Escape','m','M','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
   setNavMode(true);
   const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
   const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
   if(overlayStartVisible || overlayOverVisible){
     if(e.key==='ArrowLeft'){ cycleMode(-1); return; }
     if(e.key==='ArrowRight'){ cycleMode(1); return; }
+    if(e.key==='ArrowUp'){ cycleDifficulty(-1); return; }
+    if(e.key==='ArrowDown'){ cycleDifficulty(1); return; }
   }
   switch(e.key){
     case 'ArrowUp': case 'w': case 'W': moveUp = true; break;
@@ -939,7 +1007,7 @@ boardWrap.addEventListener('touchmove', e=>{
   const rect = boardCanvas.getBoundingClientRect();
   const t = e.touches[0];
   const y = (t.clientY - rect.top) / scale;
-  player.y = Math.max(0, Math.min(BOARD_H-PADDLE_H, y - PADDLE_H/2));
+  player.y = Math.max(0, Math.min(BOARD_H-playerPaddleH, y - playerPaddleH/2));
 }, {passive:true});
 boardWrap.addEventListener('touchend', ()=>{ dragging=false; }, {passive:true});
 
@@ -1013,7 +1081,7 @@ function loadAudioPrefs(){
 }
 
 function syncModeButtons(){
-  document.querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===currentMode));
+  document.querySelectorAll('.mode-btn[data-mode]').forEach(b=> b.classList.toggle('active', b.dataset.mode===currentMode));
 }
 function setMode(mode){
   currentMode = mode;
@@ -1027,12 +1095,35 @@ function cycleMode(dir){
   setMode(keys[(idx + dir + keys.length) % keys.length]);
 }
 document.getElementById('modeRow').addEventListener('click', e=>{
-  const btn = e.target.closest('.mode-btn');
+  const btn = e.target.closest('.mode-btn[data-mode]');
   if(btn) setMode(btn.dataset.mode);
 });
 document.getElementById('modeRowOver').addEventListener('click', e=>{
-  const btn = e.target.closest('.mode-btn');
+  const btn = e.target.closest('.mode-btn[data-mode]');
   if(btn) setMode(btn.dataset.mode);
+});
+
+function syncDiffButtons(){
+  document.querySelectorAll('.mode-btn[data-diff]').forEach(b=> b.classList.toggle('active', b.dataset.diff===aiDifficulty));
+}
+function setDifficulty(diff){
+  aiDifficulty = diff;
+  syncDiffButtons();
+  localStorage.setItem('apong_difficulty', aiDifficulty);
+  Audio_.sfx.ui();
+}
+function cycleDifficulty(dir){
+  const keys = Object.keys(AI_DIFFICULTY);
+  const idx = keys.indexOf(aiDifficulty);
+  setDifficulty(keys[(idx + dir + keys.length) % keys.length]);
+}
+document.getElementById('diffRow').addEventListener('click', e=>{
+  const btn = e.target.closest('.mode-btn[data-diff]');
+  if(btn) setDifficulty(btn.dataset.diff);
+});
+document.getElementById('diffRowOver').addEventListener('click', e=>{
+  const btn = e.target.closest('.mode-btn[data-diff]');
+  if(btn) setDifficulty(btn.dataset.diff);
 });
 
 /* ============================= START / RESTART ============================= */
@@ -1052,6 +1143,9 @@ gameState = 'idle';
 const savedMode = localStorage.getItem('apong_mode');
 if(savedMode && MODES[savedMode]) currentMode = savedMode;
 syncModeButtons();
+const savedDiff = localStorage.getItem('apong_difficulty');
+if(savedDiff && AI_DIFFICULTY[savedDiff]) aiDifficulty = savedDiff;
+syncDiffButtons();
 resetMatch();
 document.getElementById('highScoreVal').textContent = highScore;
 loadAudioPrefs();

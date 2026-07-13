@@ -303,6 +303,7 @@
     <div class="row"><span class="k">Randomized bricks</span><span class="v">colors and toughness vary every wall</span></div>
     <div class="row"><span class="k">Dynamic levels</span><span class="v">rotating layouts, more rows as you climb</span></div>
     <div class="row"><span class="k">Gamepad support</span><span class="v">move/launch, Select returns to hub while paused</span></div>
+    <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA toggles infinite lives</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -542,6 +543,23 @@ function setNavMode(on){
 window.addEventListener('mousemove', ()=> setNavMode(false));
 window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
+
+/* ============================= CHEAT CODE ============================= */
+// Classic Konami code — enter it any time during play to toggle the cheat.
+const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let cheatBuffer = [];
+let cheatActive = false;
+function checkCheatCode(key){
+  cheatBuffer.push(key.length===1 ? key.toLowerCase() : key);
+  if(cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
+  if(cheatBuffer.length === CHEAT_SEQUENCE.length && cheatBuffer.every((k,i)=>k===CHEAT_SEQUENCE[i])){
+    cheatActive = !cheatActive;
+    cheatBuffer = [];
+    showToast(cheatActive ? '✦ Infinite lives on' : '✦ Infinite lives off');
+    Audio_.sfx.powerup();
+    renderLives();
+  }
+}
 
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
@@ -799,6 +817,10 @@ function updateHUD(){
 function renderLives(){
   const row = document.getElementById('livesRow');
   row.innerHTML = '';
+  if(cheatActive){
+    row.innerHTML = '<span style="color:var(--gold);font-family:\'Fraunces\',serif;font-weight:600;font-size:16px;">&infin;</span>';
+    return;
+  }
   const total = Math.max(3, lives);
   for(let i=0;i<total;i++){
     const dot = document.createElement('div');
@@ -994,11 +1016,11 @@ function updateGame(dt){
 
   // lost the last ball on screen
   if(balls.length === 0){
-    lives--;
+    if(!cheatActive) lives--;
     renderLives();
     combo = 0;
     Audio_.sfx.loseLife();
-    if(lives<=0){ return endGame(); }
+    if(lives<=0 && !cheatActive){ return endGame(); }
     showToast('Steady now');
     resetPaddleAndBall();
     return;
@@ -1166,6 +1188,7 @@ function pollGamepad(){
 
 /* ============================= INPUT ============================= */
 window.addEventListener('keydown', e=>{
+  if(!e.repeat) checkCheatCode(e.key);
   if(['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
   setNavMode(true);

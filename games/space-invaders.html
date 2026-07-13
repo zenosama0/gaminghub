@@ -103,6 +103,10 @@
     flex-direction:column;gap:14px;text-align:center;padding:20px;
   }
   .overlay.visible{opacity:1;pointer-events:auto;}
+  body.nav-mode .overlay{
+    backdrop-filter:blur(11px);
+    background:rgba(9,10,22,0.5);
+  }
   .overlay h2{ font-family:'Fraunces',serif;font-weight:600;font-size:28px;margin:0;color:var(--moon); }
   .overlay p{margin:0;color:var(--text-dim);font-size:13px;max-width:280px;}
   .btn{
@@ -305,13 +309,16 @@
 <div class="modal-back" id="infoModalBack">
   <div class="modal">
     <h3>How to play</h3>
-    <div class="row"><span class="k">Move</span><span class="v">Arrow keys / A D / on-screen buttons</span></div>
-    <div class="row"><span class="k">Fire</span><span class="v">Space / FIRE button</span></div>
+    <div class="row"><span class="k">Move</span><span class="v">Arrow keys / A D / on-screen buttons / gamepad</span></div>
+    <div class="row"><span class="k">Fire</span><span class="v">Space / FIRE button / gamepad A or B</span></div>
     <div class="row"><span class="k">Goal</span><span class="v">Clear each wave before it reaches you</span></div>
-    <div class="row"><span class="k">Pause</span><span class="v">P or Esc</span></div>
+    <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or gamepad Start</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Gentle difficulty ramp</span><span class="v">waves ease in gradually</span></div>
     <div class="row"><span class="k">Soft glow trails</span><span class="v">a calm visual signature</span></div>
+    <div class="row"><span class="k">Gamepad support</span><span class="v">full control scheme, see above</span></div>
+    <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA toggles infinite lives</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two runs sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -654,6 +661,10 @@ function updateHUD(){
 function renderLives(){
   const row = document.getElementById('livesRow');
   row.innerHTML = '';
+  if(cheatActive){
+    row.innerHTML = '<span style="color:var(--gold);font-family:\'Fraunces\',serif;font-weight:600;font-size:16px;">&infin;</span>';
+    return;
+  }
   for(let i=0;i<3;i++){
     const dot = document.createElement('div');
     dot.className = 'life-dot' + (i < lives ? '' : ' spent');
@@ -713,7 +724,7 @@ function updateGame(dt){
   }
 
   // check invader reaching player row
-  if(alive.some(i => i.y + INV_H >= player.y)){
+  if(!cheatActive && alive.some(i => i.y + INV_H >= player.y)){
     return endGame(false);
   }
 
@@ -751,10 +762,10 @@ function updateGame(dt){
 }
 
 function loseLife(){
-  lives--;
+  if(!cheatActive) lives--;
   renderLives();
   Audio_.sfx.playerHit();
-  if(lives<=0){
+  if(lives<=0 && !cheatActive){
     endGame(false);
   } else {
     showToast('Steady now');
@@ -862,19 +873,34 @@ function drawBoard(){
 
 /* ============================= GAME LOOP ============================= */
 let lastTime = 0;
-let moveLeft=false, moveRight=false;
+let moveLeft=false, moveRight=false, gpLeft=false, gpRight=false;
 function loop(t){
   const dt = Math.min(50, t-lastTime); lastTime = t;
   drawBg(dt/1000);
+  pollGamepad();
   if(gameState==='running'){
     const speed = 0.26;
-    if(moveLeft) player.x = Math.max(4, player.x - speed*dt);
-    if(moveRight) player.x = Math.min(BOARD_W-PLAYER_W-4, player.x + speed*dt);
+    if(moveLeft||gpLeft) player.x = Math.max(4, player.x - speed*dt);
+    if(moveRight||gpRight) player.x = Math.min(BOARD_W-PLAYER_W-4, player.x + speed*dt);
     updateGame(dt);
   }
   drawBoard();
   requestAnimationFrame(loop);
 }
+
+/* ============================= INPUT MODE (nav vs pointer) ============================= */
+// Purely cosmetic: overlays get a heavier, more "immersive" blur behind them
+// when the person is steering with a keyboard or gamepad, vs. a lighter
+// touch when using a mouse or touch (where it would just get in the way).
+let navMode = false;
+function setNavMode(on){
+  if(navMode === on) return;
+  navMode = on;
+  document.body.classList.toggle('nav-mode', on);
+}
+window.addEventListener('mousemove', ()=> setNavMode(false));
+window.addEventListener('mousedown', ()=> setNavMode(false));
+window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
 function fire(){
   if(gameState!=='running') return;
@@ -883,10 +909,95 @@ function fire(){
   Audio_.sfx.shoot();
 }
 
+/* ============================= CHEAT CODE ============================= */
+// Classic Konami code — enter it any time during play to toggle the cheat.
+const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let cheatBuffer = [];
+let cheatActive = false;
+function checkCheatCode(key){
+  cheatBuffer.push(key.length===1 ? key.toLowerCase() : key);
+  if(cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
+  if(cheatBuffer.length === CHEAT_SEQUENCE.length && cheatBuffer.every((k,i)=>k===CHEAT_SEQUENCE[i])){
+    cheatActive = !cheatActive;
+    cheatBuffer = [];
+    showToast(cheatActive ? '✦ Infinite lives on' : '✦ Infinite lives off');
+    Audio_.sfx.wave();
+    renderLives();
+  }
+}
+
+/* ============================= GAMEPAD SUPPORT ============================= */
+const GamepadNav = (function(){
+  let padIndex = null;
+  let blocked = false;
+  const prevButtons = {};
+  const DEADZONE = 0.35;
+  window.addEventListener('gamepadconnected', e=>{ padIndex = e.gamepad.index; });
+  window.addEventListener('gamepaddisconnected', e=>{ if(padIndex===e.gamepad.index) padIndex=null; });
+  function poll(){
+    if(blocked || !navigator.getGamepads) return null;
+    let pads;
+    try{
+      pads = navigator.getGamepads();
+    } catch {
+      blocked = true; // e.g. blocked by a Permissions-Policy header when embedded
+      return null;
+    }
+    if(padIndex===null){
+      for(const p of pads){ if(p){ padIndex = p.index; break; } }
+    }
+    return padIndex!==null ? pads[padIndex] : null;
+  }
+  function justPressed(gp, i){
+    const now = !!(gp.buttons[i] && gp.buttons[i].pressed);
+    const was = !!prevButtons[i];
+    prevButtons[i] = now;
+    return now && !was;
+  }
+  function held(gp, i){ return !!(gp.buttons[i] && gp.buttons[i].pressed); }
+  return { poll, justPressed, held, DEADZONE };
+})();
+
+function pollGamepad(){
+  const gp = GamepadNav.poll();
+  if(!gp){ gpLeft=false; gpRight=false; return; }
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  if(overlayStartVisible || overlayOverVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); Audio_.init(); startGame(); } // A / Start
+    return;
+  }
+  if(overlayPauseVisible){
+    if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    return;
+  }
+
+  const axisX = gp.axes[0] || 0;
+  gpLeft = GamepadNav.held(gp, 14) || axisX < -GamepadNav.DEADZONE;
+  gpRight = GamepadNav.held(gp, 15) || axisX > GamepadNav.DEADZONE;
+  if(gpLeft || gpRight) setNavMode(true);
+  if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 1)){ setNavMode(true); fire(); } // A / B
+  if(GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // Start
+}
+
 /* ============================= INPUT ============================= */
 window.addEventListener('keydown', e=>{
+  if(!e.repeat) checkCheatCode(e.key);
   if(['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-  if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
+  if(gameState==='idle' && !['p','P','Escape','m','M','Enter',' '].includes(e.key)) return;
+  setNavMode(true);
+
+  const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
+  const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
+  const overlayPauseVisible = document.getElementById('overlayPause').classList.contains('visible');
+
+  if((overlayStartVisible || overlayOverVisible) && (e.key==='Enter' || e.key===' ')){ Audio_.init(); startGame(); return; }
+  if(overlayPauseVisible && (e.key==='Enter' || e.key===' ')){ togglePause(); return; }
+
   switch(e.key){
     case 'ArrowLeft': case 'a': case 'A': moveLeft = true; break;
     case 'ArrowRight': case 'd': case 'D': moveRight = true; break;

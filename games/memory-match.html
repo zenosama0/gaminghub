@@ -140,6 +140,10 @@
     background:linear-gradient(160deg, rgba(127,231,196,0.28), rgba(127,231,196,0.08));
     border-color:rgba(127,231,196,0.4);
   }
+  .card.peeking .card-front{
+    background:linear-gradient(160deg, rgba(232,193,112,0.25), rgba(232,193,112,0.06));
+    border-color:rgba(232,193,112,0.4);
+  }
   .card.gp-focused{
     box-shadow:0 0 0 3px var(--teal), 0 0 18px rgba(127,231,196,0.5);
     border-radius:10px;
@@ -337,6 +341,7 @@
     <div class="row"><span class="k">Three sizes</span><span class="v">Easy, Medium, Hard</span></div>
     <div class="row"><span class="k">No timer</span><span class="v">just a quiet, unhurried game</span></div>
     <div class="row"><span class="k">Gamepad support</span><span class="v">d-pad to move/flip, Select returns to hub while paused</span></div>
+    <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA briefly peeks at every card</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -558,6 +563,33 @@ function setNavMode(on){
 window.addEventListener('mousemove', ()=> setNavMode(false));
 window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
+
+/* ============================= CHEAT CODE ============================= */
+// Classic Konami code — enter it any time during play to briefly peek at
+// every card. One-shot rather than a toggle, since "always visible" would
+// remove the game entirely instead of just helping.
+const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let cheatBuffer = [];
+function checkCheatCode(key){
+  cheatBuffer.push(key.length===1 ? key.toLowerCase() : key);
+  if(cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
+  if(cheatBuffer.length === CHEAT_SEQUENCE.length && cheatBuffer.every((k,i)=>k===CHEAT_SEQUENCE[i])){
+    cheatBuffer = [];
+    peekAllCards();
+  }
+}
+function peekAllCards(){
+  if(gameState!=='running' || locking) return;
+  locking = true;
+  showToast('✦ Peek!');
+  Audio_.sfx.match();
+  const hidden = cards.filter(c=>!c.matched && c.el && !c.el.classList.contains('flipped'));
+  hidden.forEach(c=> c.el.classList.add('flipped','peeking'));
+  setTimeout(()=>{
+    hidden.forEach(c=> c.el.classList.remove('flipped','peeking'));
+    locking = false;
+  }, 1200);
+}
 
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
@@ -896,6 +928,7 @@ function startGame(){
 }
 
 window.addEventListener('keydown', e=>{
+  if(!e.repeat) checkCheatCode(e.key);
   const overlayStartVisible = document.getElementById('overlayStart').classList.contains('visible');
   const overlayOverVisible = document.getElementById('overlayGameOver').classList.contains('visible');
 

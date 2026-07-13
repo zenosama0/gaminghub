@@ -424,6 +424,7 @@
     <div class="row"><span class="k">T-spins, combos, back-to-back</span><span class="v">bonus scoring</span></div>
     <div class="row"><span class="k">Lock delay</span><span class="v">a breath before locking</span></div>
     <div class="row"><span class="k">Gamepad support</span><span class="v">full control scheme, see above</span></div>
+    <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA clears the board instead of topping out</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two runs sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -712,6 +713,22 @@ window.addEventListener('mousemove', ()=> setNavMode(false));
 window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
+/* ============================= CHEAT CODE ============================= */
+// Classic Konami code — enter it any time during play to toggle the cheat.
+const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let cheatBuffer = [];
+let cheatActive = false;
+function checkCheatCode(key){
+  cheatBuffer.push(key.length===1 ? key.toLowerCase() : key);
+  if(cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
+  if(cheatBuffer.length === CHEAT_SEQUENCE.length && cheatBuffer.every((k,i)=>k===CHEAT_SEQUENCE[i])){
+    cheatActive = !cheatActive;
+    cheatBuffer = [];
+    showToast(cheatActive ? '✦ Immortal board on' : '✦ Immortal board off');
+    Audio_.sfx.levelup();
+  }
+}
+
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
   let padIndex = null;
@@ -937,7 +954,13 @@ function spawnNext(){
   lastMoveWasRotation = false;
   lockTimer = 0; lockResets = 0;
   if(collides(current,0,0)){
-    endGame();
+    if(cheatActive){
+      grid = newGrid();
+      showToast('✦ Board cleared');
+      Audio_.sfx.tetris();
+    } else {
+      endGame();
+    }
   }
 }
 
@@ -1221,6 +1244,7 @@ const keyState = {};
 window.addEventListener('keydown', e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
   if(e.repeat) return;
+  checkCheatCode(e.key);
   if(gameState==='idle' && e.key!=='Enter') return;
   setNavMode(true);
   switch(e.key){
