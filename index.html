@@ -7,7 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="gamehub-cloud.js"></script>
 <style>
 
   /* ============================================================
@@ -170,7 +174,16 @@
     margin:0 0 4px; color:var(--ice);
   }
   .auth-modal .sub{ color:var(--mist); font-size:13px; margin-bottom:18px; }
-  .google-btn-wrap{ display:flex; justify-content:center; margin-bottom:14px; min-height:40px; }
+  .google-btn{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    width:100%; padding:11px; margin-bottom:14px;
+    background:#131417; border:1px solid rgba(255,255,255,0.16); border-radius:999px;
+    color:var(--ice); font-family:'Inter',sans-serif; font-size:14px; font-weight:600;
+    cursor:pointer; transition:background .15s ease, transform .15s ease;
+  }
+  .google-btn:hover{ background:#1c1d21; }
+  .google-btn:active{ transform:scale(0.98); }
+  .google-btn svg{ flex:0 0 auto; }
   .auth-divider{
     display:flex; align-items:center; gap:10px; margin:4px 0 18px;
     color:var(--mist); font-size:11.5px; letter-spacing:0.3px; text-transform:uppercase;
@@ -467,8 +480,11 @@
       <h2 id="authTitle">Keep your progress</h2>
       <div class="sub" id="authSub">Sign in to save your high scores, name, and avatar — and pick up right where you left off on any device.</div>
 
-      <div id="googleBtnContainer" class="google-btn-wrap"></div>
-      <div class="auth-divider"><span>or use a username</span></div>
+      <button type="button" class="google-btn" id="btnGoogleSignIn">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.12-.84 2.07-1.8 2.71v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.61z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.35 0-4.34-1.58-5.05-3.71H.96v2.33C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.95 10.71c-.18-.54-.28-1.11-.28-1.71s.1-1.17.28-1.71V4.96H.96C.35 6.18 0 7.55 0 9s.35 2.82.96 4.04l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.99 2.33C4.66 5.16 6.65 3.58 9 3.58z"/></svg>
+        <span>Continue with Google</span>
+      </button>
+      <div class="auth-divider"><span>or use an email</span></div>
 
       <div class="auth-tabs">
         <div class="auth-tab active" id="tabSignIn">I have an account</div>
@@ -480,8 +496,8 @@
           <input type="text" id="authDisplayName" maxlength="40" placeholder="Your display name">
         </div>
         <div class="auth-field">
-          <label>Username</label>
-          <input type="text" id="authUsername" maxlength="20" autocomplete="username" placeholder="3-20 characters, letters/numbers">
+          <label>Email</label>
+          <input type="email" id="authEmail" autocomplete="email" placeholder="you@example.com">
         </div>
         <div class="auth-field">
           <label>Password</label>
@@ -535,20 +551,6 @@
 </div>
 
 <script>
-  /* ============================================================
-     👉 GOOGLE SIGN-IN SETUP
-     1. Go to https://console.cloud.google.com/apis/credentials
-     2. Create an OAuth 2.0 Client ID of type "Web application"
-     3. Under "Authorized JavaScript origins" add your Netlify URL,
-        e.g. https://your-site-name.netlify.app
-     4. Paste the Client ID below AND set it as the GOOGLE_CLIENT_ID
-        environment variable in Netlify (Site configuration >
-        Environment variables) — both places need it.
-     Leave the placeholder in place and the Google button just won't
-     appear; everything else keeps working with username + password.
-     ============================================================ */
-  const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
-
   /* ============================================================
      👉 ADD GAMES HERE.
      Each entry needs:
@@ -774,23 +776,28 @@
   requestAnimationFrame(pollGamepadNav);
 
   /* ============================= ACCOUNTS ============================= */
-  const AuthAPI = {
-    token: localStorage.getItem('gh_token') || null,
-    async call(path, method, body){
-      const headers = { 'Content-Type': 'application/json' };
-      if (this.token) headers['Authorization'] = 'Bearer ' + this.token;
-      const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
-      const data = await res.json().catch(()=>({}));
-      if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-      return data;
-    },
-    setToken(t){
-      this.token = t;
-      if (t) localStorage.setItem('gh_token', t);
-      else localStorage.removeItem('gh_token');
-    }
-  };
+  const Cloud = window.GameHubCloud;
 
+  function friendlyAuthError(err){
+    const code = err && err.code;
+    const map = {
+      'auth/email-already-in-use': 'That email already has an account — try signing in instead.',
+      'auth/invalid-email': "That doesn't look like a valid email address.",
+      'auth/weak-password': 'Please use a password with at least 6 characters.',
+      'auth/wrong-password': 'Incorrect email or password.',
+      'auth/user-not-found': 'Incorrect email or password.',
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/too-many-requests': 'Too many attempts — please wait a moment and try again.',
+      'auth/popup-closed-by-user': 'The sign-in window was closed before finishing.',
+      'auth/network-request-failed': 'Network error — check your connection and try again.',
+      'auth/api-key-not-valid.-please-pass-a-valid-api-key.': "This site's Firebase setup isn't finished yet — see firebase-config.js.",
+      'auth/invalid-api-key': "This site's Firebase setup isn't finished yet — see firebase-config.js.",
+      'auth/configuration-not-found': "Email/password sign-in isn't turned on yet for this Firebase project — see README.md.",
+    };
+    return (code && map[code]) || (err && err.message) || 'Something went wrong.';
+  }
+
+  let currentUser = null;
   let currentProfile = null;
   let authMode = 'signin';
 
@@ -809,7 +816,7 @@
     document.getElementById('authTitle').textContent = mode==='signin' ? 'Welcome back' : 'Create your profile';
     document.getElementById('authSub').textContent = mode==='signin'
       ? 'Sign in to keep your profile and avatar.'
-      : 'Pick a username and password — your profile is saved on this hub.';
+      : 'Pick an email and password — your profile is saved to your account.';
     authSubmit.textContent = mode==='signin' ? 'Sign in' : 'Create account';
     authError.textContent = '';
     authModalBack.classList.add('visible');
@@ -826,21 +833,28 @@
     e.preventDefault();
     authError.textContent = '';
     authSubmit.disabled = true;
-    const username = document.getElementById('authUsername').value.trim();
+    const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     const displayName = document.getElementById('authDisplayName').value.trim();
     try{
-      const data = authMode === 'signin'
-        ? await AuthAPI.call('/api/login', 'POST', { username, password })
-        : await AuthAPI.call('/api/signup', 'POST', { username, password, displayName });
-      AuthAPI.setToken(data.token);
-      currentProfile = data.profile;
-      renderAuthArea();
+      if(authMode === 'signin') await Cloud.signIn(email, password);
+      else await Cloud.signUp(email, password, displayName);
       closeAuthModal();
+      // currentUser/currentProfile get filled in by the onAuthChange listener below.
     } catch(err){
-      authError.textContent = err.message;
+      authError.textContent = friendlyAuthError(err);
     } finally {
       authSubmit.disabled = false;
+    }
+  });
+
+  document.getElementById('btnGoogleSignIn').addEventListener('click', async ()=>{
+    authError.textContent = '';
+    try{
+      await Cloud.signInWithGoogle();
+      closeAuthModal();
+    } catch(err){
+      authError.textContent = friendlyAuthError(err);
     }
   });
 
@@ -855,8 +869,9 @@
       profileMenu.classList.remove('visible');
       return;
     }
-    const avatarHtml = currentProfile.avatarUrl
-      ? `<img src="${currentProfile.avatarUrl}?t=${Date.now()}" alt="avatar">`
+    const avatarUrl = Cloud.avatarUrlFor(currentProfile);
+    const avatarHtml = avatarUrl
+      ? `<img src="${avatarUrl}" alt="avatar">`
       : initials(currentProfile.displayName);
     authArea.innerHTML = `
       <div class="profile-chip" id="profileChip">
@@ -869,8 +884,9 @@
 
   function fillProfileMenu(){
     if (!currentProfile) return;
-    const avatarHtml = currentProfile.avatarUrl
-      ? `<img src="${currentProfile.avatarUrl}?t=${Date.now()}" alt="avatar">`
+    const avatarUrl = Cloud.avatarUrlFor(currentProfile);
+    const avatarHtml = avatarUrl
+      ? `<img src="${avatarUrl}" alt="avatar">`
       : initials(currentProfile.displayName);
     document.getElementById('pmAvatar').innerHTML = avatarHtml;
     document.getElementById('pmName').textContent = currentProfile.displayName;
@@ -887,19 +903,18 @@
   });
 
   document.getElementById('pmSave').addEventListener('click', async ()=>{
+    if(!currentUser) return;
     try{
       const displayName = document.getElementById('pmDisplayName').value.trim();
       const bio = document.getElementById('pmBio').value;
-      const data = await AuthAPI.call('/api/profile', 'POST', { displayName, bio });
-      currentProfile = data.profile;
+      await Cloud.updateProfile(currentUser.uid, { displayName, bio });
+      currentProfile = await Cloud.getProfile(currentUser.uid);
       renderAuthArea();
-    } catch(err){ alert(err.message); }
+    } catch(err){ alert(friendlyAuthError(err)); }
   });
 
   document.getElementById('pmLogout').addEventListener('click', ()=>{
-    AuthAPI.setToken(null);
-    currentProfile = null;
-    renderAuthArea();
+    Cloud.signOut().catch(()=>{});
   });
 
   document.getElementById('pmAvatarEdit').addEventListener('click', ()=>{
@@ -907,58 +922,31 @@
   });
   document.getElementById('avatarInput').addEventListener('change', async e=>{
     const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 4*1024*1024){ alert('Please choose an image under 4MB.'); return; }
-    const reader = new FileReader();
-    reader.onload = async ()=>{
-      try{
-        const data = await AuthAPI.call('/api/avatar', 'POST', { imageDataUrl: reader.result });
-        currentProfile = data.profile;
-        renderAuthArea();
-        fillProfileMenu();
-        profileMenu.classList.add('visible');
-      } catch(err){ alert(err.message); }
-    };
-    reader.readAsDataURL(file);
+    if (!file || !currentUser) return;
+    if (file.size > 8*1024*1024){ alert('Please choose an image under 8MB.'); return; }
+    try{
+      await Cloud.uploadAvatar(currentUser.uid, file);
+      currentProfile = await Cloud.getProfile(currentUser.uid);
+      renderAuthArea();
+      fillProfileMenu();
+      profileMenu.classList.add('visible');
+    } catch(err){ alert(friendlyAuthError(err)); }
   });
 
-  (async function initAuth(){
-    if (!AuthAPI.token) return;
-    try{
-      const data = await AuthAPI.call('/api/me', 'GET');
-      currentProfile = data.profile;
+  Cloud.onAuthChange(async (user)=>{
+    currentUser = user;
+    if(!user){
+      currentProfile = null;
       renderAuthArea();
-    } catch {
-      AuthAPI.setToken(null);
-    }
-  })();
-
-  /* ---- Google Sign-In ---- */
-  async function handleGoogleCredential(response){
-    authError.textContent = '';
-    try{
-      const data = await AuthAPI.call('/api/google-auth', 'POST', { credential: response.credential });
-      AuthAPI.setToken(data.token);
-      currentProfile = data.profile;
-      renderAuthArea();
-      closeAuthModal();
-    } catch(err){
-      authError.textContent = err.message;
-    }
-  }
-
-  function initGoogleButton(){
-    const configured = GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith('YOUR_GOOGLE_CLIENT_ID');
-    const container = document.getElementById('googleBtnContainer');
-    if (!configured || !window.google || !window.google.accounts){
-      container.style.display = 'none';
-      document.querySelector('.auth-divider').style.display = 'none';
       return;
     }
-    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
-    google.accounts.id.renderButton(container, { theme: 'filled_black', size: 'large', shape: 'pill', width: 280 });
-  }
-  window.addEventListener('load', ()=> setTimeout(initGoogleButton, 300));
+    try{
+      currentProfile = await Cloud.getProfile(user.uid);
+      renderAuthArea();
+    } catch(err){
+      console.warn('Could not load profile:', err);
+    }
+  });
 </script>
 
 </body>

@@ -2,71 +2,101 @@
 
 ## Structure
 ```
-index.html                    ← the hub page (grid of games + sign-in)
-netlify.toml                  ← Netlify build/redirect config
-package.json                  ← @netlify/blobs dependency
-netlify/functions/
-  lib/shared.js                shared helpers (not itself an endpoint)
-  signup.js    login.js         username + password auth
-  google-auth.js                Google Sign-In (verify + auto-create account)
-  me.js        profile.js       read / update the signed-in profile
-  avatar-upload.js  avatar.js   upload + serve avatar images
-  scores.js                     per-game high scores
+index.html              ← the hub page (grid of games + sign-in)
+terms.html               ← Terms & Privacy page, linked from the footer
+firebase-config.js       ← paste your Firebase project config here
+gamehub-cloud.js          shared Firebase Auth + Firestore helper, used by
+                          the hub and every game
 games/
   tetris.html  snake.html  2048.html  space-invaders.html
   pong.html  memory-match.html  breakout.html
 ```
 
-## Deploying on Netlify
-Push this folder to a Git repo and connect it to Netlify (or drag-and-drop
-deploy). Netlify reads `netlify.toml` automatically:
-- `publish = "."` — serves `index.html` and `games/` as-is.
-- `functions = "netlify/functions"` — deploys the account API as serverless functions.
-- Netlify runs `npm install` during the build, which pulls in `@netlify/blobs`.
+## Deploying on GitHub Pages
+This is a plain static site — no build step, no server, no functions. To
+deploy it:
+1. Push this folder to a GitHub repo.
+2. Repo → **Settings → Pages** → under "Build and deployment", set
+   **Source** to "Deploy from a branch", pick your branch (e.g. `main`)
+   and the root folder, then save.
+3. GitHub gives you a URL like `https://your-username.github.io/your-repo/`.
+   That's it — no further config on the GitHub side.
 
-No database to provision — accounts, profiles, and avatars are stored in
-**Netlify Blobs**, a key-value/file store built into your Netlify site. There's
-nothing to configure for this part; it just works once deployed.
+Accounts, profiles, avatars, and scores are handled by **Firebase**
+(Google's free-tier-friendly backend-as-a-service), which runs entirely
+from the browser — no server of your own required. You do need to set
+up a Firebase project once; see below.
 
-One thing you should set:
-- **`SESSION_SECRET`** — Site configuration → Environment variables. Any long
-  random string. This signs the sign-in tokens; without a custom value it
-  falls back to a fixed dev string, which is fine for testing but not for
-  a real deployment.
+## Setting up Firebase (accounts, profiles, scores)
+1. Go to the [Firebase console](https://console.firebase.google.com/) and
+   create a new project (the free Spark plan is enough for this).
+2. **Add a web app**: Project overview → the `</>` (web) icon → register
+   an app (no need for Firebase Hosting — you're using GitHub Pages).
+   Firebase will show you a `firebaseConfig` object.
+3. Copy that object into **`firebase-config.js`** at the root of this
+   project, replacing the placeholder values.
+4. **Enable sign-in methods**: Build → Authentication → Get started →
+   Sign-in method tab → enable **Email/Password** and **Google**.
+5. **Add your GitHub Pages domain as authorized**: still in Authentication
+   → Settings → Authorized domains → Add domain → paste your
+   `your-username.github.io` domain (Google Sign-In's popup won't work
+   from an unlisted domain).
+6. **Create the database**: Build → Firestore Database → Create database
+   → start in production mode (the security rules below lock it down
+   properly either way).
+7. **Set Firestore security rules** — Firestore Database → Rules tab,
+   replace the contents with:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{userId} {
+         allow read: if true;
+         allow write: if request.auth != null && request.auth.uid == userId;
+       }
+       match /leaderboard/{docId} {
+         allow read: if true;
+         allow write: if request.auth != null && request.auth.uid == request.resource.data.uid;
+       }
+     }
+   }
+   ```
+   This lets anyone *read* profiles and leaderboard entries (needed so a
+   future leaderboard page can show everyone's scores, and so avatars/names
+   display correctly), but only lets people write to their *own* profile
+   or their *own* leaderboard entries — never someone else's.
+8. Push to GitHub (or refresh if already deployed) and try signing up.
 
-## Setting up Google Sign-In
-1. Go to the [Google Cloud Console credentials page](https://console.cloud.google.com/apis/credentials).
-2. Create an **OAuth 2.0 Client ID** of type **Web application**.
-3. Under **Authorized JavaScript origins**, add your Netlify URL (e.g.
-   `https://your-site-name.netlify.app`).
-4. Copy the Client ID into **two** places:
-   - `GOOGLE_CLIENT_ID` in `index.html` (search for "GOOGLE SIGN-IN SETUP" near the top of the script).
-   - A `GOOGLE_CLIENT_ID` environment variable in Netlify (Site configuration → Environment variables) — the function that verifies the sign-in needs it too.
-
-Until you do this, the Google button on the sign-in modal just doesn't
-appear — everything else (username/password accounts, scores, avatars)
-works fine without it.
+The Firebase config in `firebase-config.js` is not a secret — it's normal
+for it to be visible in client-side code. What actually protects your
+data is the Authentication settings and the Firestore rules above.
 
 ## How accounts work
-- **Username + password**: scrypt password hash + random salt, stored in
-  the `credentials` Blobs store. Never the plain password, never returned
-  to the browser.
-- **Google Sign-In**: the browser gets a Google ID token via Google
-  Identity Services; a function verifies it directly with Google
-  (`oauth2.googleapis.com/tokeninfo`) and either logs in or creates a new
-  account, linked by the Google account's stable ID so repeat sign-ins
-  always land on the same profile.
-- **Sessions are stateless** — a signed token (HMAC, not a database row)
-  that the browser keeps in `localStorage` and sends back as
-  `Authorization: Bearer ...`. No server-side session storage, which
-  suits serverless functions well (any function instance can verify any
-  token without shared state).
-- **Avatars** are stored as raw image blobs, one per user, served through
-  a small function so they load like a normal image.
-- **High scores** sync automatically: each game checks `localStorage` for
-  a sign-in token, pulls your saved high score on load, and pushes a new
-  one whenever you beat it. If you're signed in on two devices, both see
-  the same scores.
+- **Email + password**: handled entirely by Firebase Authentication —
+  this site never sees or stores your password, only whether Firebase
+  says the sign-in succeeded.
+- **Google Sign-In**: a normal Firebase/Google popup flow. First sign-in
+  creates a matching profile automatically (using the name and photo
+  Google shares); later sign-ins just recognize the same account.
+- **Sessions**: Firebase Authentication manages this in the browser —
+  nothing custom to configure, and it persists across page reloads and
+  across the hub and every game page (they all load the same Firebase
+  project).
+- **Profiles** (display name, bio, avatar) live in Firestore, under
+  `users/{uid}`. Avatars are resized client-side to a small JPEG and
+  stored as a data URL directly on the profile document — no separate
+  file storage bucket needed.
+- **High scores** sync automatically: each game checks Firebase's
+  sign-in state on load, pulls your saved high score from Firestore, and
+  pushes a new one whenever you beat it. Signed in on two devices? Both
+  see the same scores.
+- **Leaderboard-ready**: every new high score also writes a small entry
+  into a separate `leaderboard` collection (`{game}_{uid}` → uid, game,
+  displayName, score, updatedAt). No leaderboard page exists yet — this
+  is just groundwork so building one later is a matter of querying that
+  collection (`gamehub-cloud.js` already has a ready-to-use
+  `GameHubCloud.getLeaderboard(game, limit)` function, it's just not
+  called by any UI yet), not restructuring the data.
 
 ## Gamepad support
 A standard USB/Bluetooth gamepad (Xbox/PlayStation-style layout) works on
@@ -188,10 +218,17 @@ instead of bolting on a cheat that undermines the game.
    - `file` — filename inside `games/`
    - `icon` — an emoji, or a path to an image, or omit it to show the game's first letter
    - `tag` — optional small label (genre etc.)
-4. If you want the new game's high scores to sync too, add its id to
-   `KNOWN_GAMES` in `netlify/functions/scores.js`, and add a small
-   `CloudSync` block to the game (copy the one from `pong.html` — it's
-   about 20 lines and just needs a `GAME_ID` string changed).
+4. If you want the new game's high scores to sync too:
+   - Copy the Firebase SDK script tags from any existing game's `<head>`
+     (`firebase-app-compat.js`, `firebase-auth-compat.js`,
+     `firebase-firestore-compat.js`, then `../firebase-config.js` and
+     `../gamehub-cloud.js`).
+   - Copy the `CloudSync` block from `pong.html` — about 30 lines, just
+     change the `GAME_ID` string.
+   - Call `CloudSync.pull()` once at startup and `CloudSync.push(score)`
+     whenever the score changes (see any existing game for the exact
+     spot). There's no separate allow-list to update anywhere — Firestore
+     accepts any game id you use consistently.
 
 The tile appears in the grid automatically, in the order you listed it,
 and search filters it by name.

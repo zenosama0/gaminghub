@@ -74,7 +74,7 @@
 
   <div class="callout">
     <strong>The short version:</strong> this is a small, self-hosted game hub. If you create
-    an account, we store your username, a securely hashed password (or your Google account
+    an account, we store your email, a securely hashed password (or your Google account
     link, if you use that instead), whatever display name/bio/avatar you choose to add, and
     your high scores. We don't sell your data, run ads, or share it with anyone except Google
     itself when you choose to sign in with Google. There's no analytics or tracking beyond
@@ -84,25 +84,25 @@
   <h2>1. What this site is</h2>
   <p>
     Game Hub is a small collection of browser games with an optional account system so your
-    profile, avatar, and high scores can follow you across devices. It's run on Netlify, and
-    account data is stored using Netlify's built-in storage (Netlify Blobs) — there's no
-    separate company or third-party database behind it.
+    profile, avatar, and high scores can follow you across devices. It's hosted on GitHub
+    Pages, and account data is stored using Google's Firebase (Authentication and Firestore)
+    — there's no separate company or custom server behind it.
   </p>
 
   <h2>2. Creating an account</h2>
   <p>You can either:</p>
   <ul>
-    <li>Sign up with a <strong>username and password</strong>, or</li>
+    <li>Sign up with an <strong>email and password</strong>, or</li>
     <li>Sign in with <strong>Google</strong>, which shares your name, email, and profile picture with this site so it can create a matching profile automatically.</li>
   </ul>
   <p>
-    Passwords are never stored in plain text — they're hashed with a random salt (scrypt)
-    before being saved, so even the site operator can't read your actual password.
+    Passwords are never stored or seen by this site at all — Firebase Authentication handles
+    that entirely, and only tells this site whether the sign-in succeeded.
   </p>
 
   <h2>3. What we store</h2>
   <ul>
-    <li><strong>Credentials:</strong> your username, and a salted password hash (username/password accounts only)</li>
+    <li><strong>Account:</strong> your email address (used only for signing in — Firebase Authentication manages this, not this site directly)</li>
     <li><strong>Profile:</strong> display name, bio, and avatar image, if you choose to set them</li>
     <li><strong>Scores:</strong> your saved high score per game</li>
     <li><strong>Google accounts:</strong> the name, email, and profile picture Google shares at sign-in, used only to create and recognize your profile</li>
@@ -113,7 +113,7 @@
   <ul>
     <li>No ads, ad tracking, or ad networks</li>
     <li>No selling or sharing your data with third parties</li>
-    <li>No analytics beyond what Netlify itself may log for hosting purposes (e.g. basic server logs)</li>
+    <li>No analytics beyond what GitHub Pages or Firebase themselves may log for hosting purposes (e.g. basic server logs)</li>
   </ul>
 
   <h2>5. Your choices</h2>
