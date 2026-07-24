@@ -801,6 +801,32 @@
   let currentProfile = null;
   let authMode = 'signin';
 
+  // A tiny cached snapshot of the last known profile lets the header render
+  // instantly on page load instead of showing "Sign in" for a moment while
+  // Firebase re-establishes the session and Firestore fetches the real
+  // profile. The real check below always runs and corrects this if it's
+  // ever wrong (e.g. actually signed out, or edited elsewhere).
+  const PROFILE_CACHE_KEY = 'gh_profile_cache';
+  function cacheProfileSnapshot(profile){
+    try{
+      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({
+        displayName: profile.displayName,
+        bio: profile.bio || '',
+        avatarBase64: profile.avatarBase64 || null,
+        avatarExternalUrl: profile.avatarExternalUrl || null
+      }));
+    } catch {}
+  }
+  function readCachedProfileSnapshot(){
+    try{
+      const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function clearCachedProfileSnapshot(){
+    try{ localStorage.removeItem(PROFILE_CACHE_KEY); } catch {}
+  }
+
   const authModalBack = document.getElementById('authModalBack');
   const authArea = document.getElementById('authArea');
   const authForm = document.getElementById('authForm');
@@ -909,6 +935,7 @@
       const bio = document.getElementById('pmBio').value;
       await Cloud.updateProfile(currentUser.uid, { displayName, bio });
       currentProfile = await Cloud.getProfile(currentUser.uid);
+      cacheProfileSnapshot(currentProfile);
       renderAuthArea();
     } catch(err){ alert(friendlyAuthError(err)); }
   });
@@ -927,21 +954,37 @@
     try{
       await Cloud.uploadAvatar(currentUser.uid, file);
       currentProfile = await Cloud.getProfile(currentUser.uid);
+      cacheProfileSnapshot(currentProfile);
       renderAuthArea();
       fillProfileMenu();
       profileMenu.classList.add('visible');
     } catch(err){ alert(friendlyAuthError(err)); }
   });
 
+  // Optimistic render: if we have a cached snapshot from last time, show it
+  // immediately instead of flashing "Sign in" while the real check runs.
+  // currentUser stays null until the real callback below confirms it, so
+  // pmSave/avatar-upload (which both check currentUser) can't act on this
+  // guess — it's display-only until confirmed.
+  (function renderOptimisticFromCache(){
+    const cached = readCachedProfileSnapshot();
+    if(cached){
+      currentProfile = cached;
+      renderAuthArea();
+    }
+  })();
+
   Cloud.onAuthChange(async (user)=>{
     currentUser = user;
     if(!user){
       currentProfile = null;
+      clearCachedProfileSnapshot();
       renderAuthArea();
       return;
     }
     try{
       currentProfile = await Cloud.getProfile(user.uid);
+      if(currentProfile) cacheProfileSnapshot(currentProfile);
       renderAuthArea();
     } catch(err){
       console.warn('Could not load profile:', err);
