@@ -61,6 +61,7 @@
   }
   .icon-btn:hover{background:var(--panel-strong);}
   .icon-btn:active{transform:scale(0.92);}
+  .icon-btn.console-btn{ font-family:'Consolas','Menlo',monospace; font-size:14px; font-weight:700; }
 
   main#gameArea{
     flex:1 1 auto;display:flex;align-items:center;justify-content:center;
@@ -176,6 +177,39 @@
   .switch.on::after{left:22px;}
   .modal-close{margin-top:16px;width:100%;}
 
+  /* ---- Console ---- */
+  .console-overlay{
+    position:fixed; left:50%; top:8vh; transform:translateX(-50%) translateY(-12px);
+    width:min(560px, 92vw); z-index:40;
+    opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease;
+  }
+  .console-overlay.visible{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+  .console-box{
+    background:rgba(6,7,16,0.88); border:1px solid rgba(127,231,196,0.35);
+    border-radius:12px; box-shadow:0 30px 60px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(127,231,196,0.08), 0 0 26px rgba(127,231,196,0.12);
+    overflow:hidden; backdrop-filter:blur(10px);
+  }
+  .console-log{
+    max-height:180px; overflow-y:auto; padding:10px 14px 4px;
+    font-family:'Consolas','Menlo','Courier New',monospace; font-size:12.5px; line-height:1.6;
+    color:var(--text-dim);
+  }
+  .console-line.echo{ color:var(--moon); }
+  .console-line.ok{ color:var(--teal); }
+  .console-line.err{ color:var(--rose); }
+  .console-input-row{
+    display:flex; align-items:center; gap:8px;
+    border-top:1px solid rgba(255,255,255,0.08);
+    padding:9px 14px; background:rgba(255,255,255,0.02);
+  }
+  .console-prompt{ font-family:'Consolas','Menlo',monospace; color:var(--teal); font-weight:700; }
+  .console-input-row input{
+    flex:1; background:transparent; border:none; outline:none;
+    font-family:'Consolas','Menlo','Courier New',monospace; font-size:13px;
+    color:var(--moon); caret-color:var(--teal);
+  }
+  .console-input-row input::placeholder{ color:var(--text-dimmer); }
+
   @media (max-width: 880px), (pointer:coarse){
     main#gameArea{flex-direction:column;padding:4px 8px;gap:6px;}
     .panel-col{
@@ -214,6 +248,7 @@
       <a class="icon-btn" href="../index.html" title="Back to Game Hub">⌂</a>
       <div class="icon-btn" id="btnSound" title="Sound settings">♪</div>
       <div class="icon-btn" id="btnInfo" title="How to play & features">?</div>
+      <div class="icon-btn console-btn" id="btnConsole" title="Open console (`)">&gt;_</div>
       <div class="icon-btn" id="btnPause" title="Pause">❙❙</div>
       <div class="icon-btn" id="btnFullscreen" title="Fullscreen">⛶</div>
     </div>
@@ -236,7 +271,7 @@
       <div class="hint-block">
         <div style="margin-bottom:6px;"><kbd>← →</kbd> or <kbd>A D</kbd> move</div>
         <div style="margin-bottom:6px;"><kbd>space</kbd> launch</div>
-        <div><kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute</div>
+        <div><kbd>P</kbd> pause &nbsp; <kbd>`</kbd> console</div>
       </div>
     </div>
 
@@ -285,6 +320,18 @@
   </div>
 </div>
 
+<div class="console-overlay" id="consoleOverlay">
+  <div class="console-box">
+    <div class="console-log" id="consoleLog">
+      <div class="console-line">Aurora Breakout console — type <span style="color:var(--gold);">help</span> and press Enter.</div>
+    </div>
+    <div class="console-input-row">
+      <span class="console-prompt">›</span>
+      <input id="consoleInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type a command…">
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="infoModalBack">
   <div class="modal">
     <h3>How to play</h3>
@@ -298,12 +345,14 @@
     <div class="row"><span class="k">✦ Expand</span><span class="v">a wider paddle for a little while</span></div>
     <div class="row"><span class="k">✦ Machine gun</span><span class="v">the paddle fires upward for 10 seconds</span></div>
     <div class="row"><span class="k">✦ Metal ball</span><span class="v">plows through 1-hit bricks; one-shots tougher ones but ricochets off</span></div>
+    <h3 style="margin-top:20px;">The console</h3>
+    <div class="row"><span class="k">Open / close</span><span class="v">press <kbd>`</kbd> (backtick) or tap the &gt;_ icon</span></div>
+    <div class="row"><span class="k">Try</span><span class="v">type <strong>help</strong> and press Enter</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Gentle difficulty ramp</span><span class="v">levels ease in gradually, ball speed is capped</span></div>
     <div class="row"><span class="k">Randomized bricks</span><span class="v">colors and toughness vary every wall</span></div>
     <div class="row"><span class="k">Dynamic levels</span><span class="v">rotating layouts, more rows as you climb</span></div>
     <div class="row"><span class="k">Gamepad support</span><span class="v">move/launch, Select returns to hub while paused</span></div>
-    <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA toggles infinite lives</span></div>
     <div class="row"><span class="k">Ambient generative music</span><span class="v">no two rounds sound alike</span></div>
     <button class="btn ghost modal-close" id="closeInfo">Close</button>
   </div>
@@ -492,6 +541,12 @@ const Audio_ = (function(){
       [440,554.37,659.25,880].forEach((f,i)=> playBellPublic(f, t+i*0.06, 0.08));
     },
     laser(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 700, 0.05, 'square', 0.025, 1100); },
+    console_(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 500, 0.05, 'square', 0.02, 700); },
+    cheat(){
+      if(!sfxOn||!ctx) return;
+      const t = ctx.currentTime;
+      [440,554.37,659.25,880].forEach((f,i)=> playBellPublic(f, t+i*0.06, 0.08));
+    },
     ui(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 600, 0.05, 'sine', 0.04); },
     pause(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 300, 0.09, 'triangle', 0.05, 220); }
   };
@@ -544,22 +599,8 @@ window.addEventListener('mousemove', ()=> setNavMode(false));
 window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
-/* ============================= CHEAT CODE ============================= */
-// Classic Konami code — enter it any time during play to toggle the cheat.
-const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
-let cheatBuffer = [];
-let cheatActive = false;
-function checkCheatCode(key){
-  cheatBuffer.push(key.length===1 ? key.toLowerCase() : key);
-  if(cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
-  if(cheatBuffer.length === CHEAT_SEQUENCE.length && cheatBuffer.every((k,i)=>k===CHEAT_SEQUENCE[i])){
-    cheatActive = !cheatActive;
-    cheatBuffer = [];
-    showToast(cheatActive ? '✦ Infinite lives on' : '✦ Infinite lives off');
-    Audio_.sfx.powerup();
-    renderLives();
-  }
-}
+/* ============================= CHEATS (driven by the console below) ============================= */
+let cheatActive = false; // godmode: infinite lives
 
 /* ============================= GAMEPAD SUPPORT ============================= */
 const GamepadNav = (function(){
@@ -1162,7 +1203,7 @@ function loop(t){
   const dt = Math.min(50, t-lastTime); lastTime = t;
   drawBg(dt/1000);
   pollGamepad();
-  if(gameState==='running') updateGame(dt);
+  if(gameState==='running' && !consoleOpen) updateGame(dt);
   drawBoard();
   requestAnimationFrame(loop);
 }
@@ -1170,6 +1211,7 @@ function loop(t){
 function pollGamepad(){
   const gp = GamepadNav.poll();
   if(!gp){ gpLeft=false; gpRight=false; return; }
+  if(consoleOpen) return;
   const axisX = gp.axes[0] || 0;
   gpLeft = GamepadNav.held(gp, 14) || axisX < -GamepadNav.DEADZONE;
   gpRight = GamepadNav.held(gp, 15) || axisX > GamepadNav.DEADZONE;
@@ -1186,9 +1228,145 @@ function pollGamepad(){
   }
 }
 
+/* ============================= CONSOLE ============================= */
+const consoleOverlay = document.getElementById('consoleOverlay');
+const consoleLog = document.getElementById('consoleLog');
+const consoleInput = document.getElementById('consoleInput');
+let consoleOpen = false;
+
+function openConsole(){
+  consoleOpen = true;
+  setNavMode(true);
+  consoleOverlay.classList.add('visible');
+  Audio_.sfx.console_();
+  setTimeout(()=> consoleInput.focus(), 10);
+}
+function closeConsole(){
+  consoleOpen = false;
+  consoleOverlay.classList.remove('visible');
+  consoleInput.blur();
+}
+function toggleConsole(){
+  if(consoleOpen) closeConsole(); else openConsole();
+}
+document.getElementById('btnConsole').addEventListener('click', toggleConsole);
+
+function logLine(text, cls){
+  const line = document.createElement('div');
+  line.className = 'console-line' + (cls ? ' '+cls : '');
+  line.textContent = text;
+  consoleLog.appendChild(line);
+  consoleLog.scrollTop = consoleLog.scrollHeight;
+  while(consoleLog.children.length > 60) consoleLog.removeChild(consoleLog.firstChild);
+}
+
+const CONSOLE_HELP = 'Commands: help, godmode, lives <0-99>, score <n>, level <n>, wipe, metalball, expand, cls, close';
+
+function runCommand(raw){
+  const trimmed = raw.trim();
+  if(!trimmed) return;
+  logLine('› ' + trimmed, 'echo');
+  const parts = trimmed.split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+  const arg = parts[1];
+
+  switch(cmd){
+    case 'help':
+      logLine(CONSOLE_HELP);
+      break;
+    case 'godmode':
+      cheatActive = !cheatActive;
+      renderLives();
+      Audio_.sfx.cheat();
+      logLine('Godmode ' + (cheatActive ? 'ON — infinite lives' : 'off'), 'ok');
+      break;
+    case 'lives': {
+      const n = parseInt(arg,10);
+      if(Number.isFinite(n) && n>=0 && n<=99 && gameState!=='idle'){
+        lives = n; renderLives(); Audio_.sfx.cheat();
+        logLine('Lives set to ' + n, 'ok');
+      } else logLine('Usage: lives <0-99> (during a run)', 'err');
+      break;
+    }
+    case 'score': {
+      const n = parseInt(arg,10);
+      if(Number.isFinite(n) && n>=0){
+        score = n; updateHUD(); Audio_.sfx.cheat();
+        logLine('Score set to ' + n, 'ok');
+      } else logLine('Usage: score <number>', 'err');
+      break;
+    }
+    case 'level': {
+      const n = parseInt(arg,10);
+      if(Number.isFinite(n) && n>=1 && n<=999 && gameState==='running'){
+        level = n;
+        bricks = buildBricks(level);
+        resetPaddleAndBall();
+        updateHUD();
+        Audio_.sfx.cheat();
+        logLine('Jumped to level ' + n, 'ok');
+      } else logLine('Usage: level <1-999> (during a run)', 'err');
+      break;
+    }
+    case 'wipe':
+      if(gameState==='running'){
+        bricks.forEach(b=> b.alive = false);
+        updateHUD();
+        showToast('Wall wiped');
+        Audio_.sfx.levelClear();
+        logLine('Bricks wiped — next wall incoming', 'ok');
+      } else {
+        logLine('Start a run first.', 'err');
+      }
+      break;
+    case 'metalball':
+      if(gameState==='running'){
+        balls.forEach(b=> b.metal = true);
+        Audio_.sfx.cheat();
+        logLine('All balls are now metal', 'ok');
+      } else logLine('Start a run first.', 'err');
+      break;
+    case 'expand':
+      if(gameState==='running'){
+        paddleWidth = EXPAND_PADDLE_W;
+        expandUntil = performance.now() + EXPAND_DURATION;
+        Audio_.sfx.cheat();
+        logLine('Paddle expanded', 'ok');
+      } else logLine('Start a run first.', 'err');
+      break;
+    case 'cls':
+      consoleLog.innerHTML = '';
+      break;
+    case 'close': case 'exit':
+      closeConsole();
+      break;
+    default:
+      logLine('Unknown command: "' + cmd + '" — try "help"', 'err');
+  }
+}
+
+consoleInput.addEventListener('keydown', e=>{
+  e.stopPropagation();
+  if(e.key === 'Enter'){
+    const val = consoleInput.value;
+    consoleInput.value = '';
+    runCommand(val);
+  } else if(e.key === 'Escape' || e.key === '`' || e.key === '~'){
+    e.preventDefault();
+    closeConsole();
+  }
+});
+consoleInput.addEventListener('keyup', e=> e.stopPropagation());
+
 /* ============================= INPUT ============================= */
 window.addEventListener('keydown', e=>{
-  if(!e.repeat) checkCheatCode(e.key);
+  if(e.key === '`' || e.key === '~'){
+    e.preventDefault();
+    toggleConsole();
+    return;
+  }
+  if(consoleOpen) return;
+
   if(['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   if(gameState==='idle' && !['p','P','Escape','m','M'].includes(e.key)) return;
   setNavMode(true);
@@ -1241,6 +1419,7 @@ boardWrap.addEventListener('touchend', ()=>{ touching=false; }, {passive:true});
 
 /* ============================= UI WIRING ============================= */
 function togglePause(){
+  if(consoleOpen) return;
   if(gameState==='running'){
     gameState='paused';
     document.getElementById('overlayPause').classList.add('visible');
