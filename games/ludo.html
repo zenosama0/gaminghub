@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Aurora Ludo — a quiet game of four paths home</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -42,12 +43,13 @@
   }
   #bgCanvas{ position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block; }
   #app{
-    position:relative;z-index:1;width:100%;
+    position:relative;width:100%;
     height:100vh;height:100dvh;
     display:flex;flex-direction:column;
     min-height:0;
   }
   header{
+    position:relative;z-index:20;
     display:flex;align-items:center;justify-content:space-between;
     padding:10px 18px;flex:0 0 auto;gap:10px;
   }
@@ -1695,6 +1697,22 @@ let joinTimeoutHandle = null;
 
 function peerAvailable(){ return typeof Peer !== 'undefined'; }
 
+// STUN alone only helps two peers discover their public address — it can't
+// get through every NAT/firewall combination, especially across two
+// different networks (home + mobile, two different offices, etc). TURN is
+// a relay of last resort for exactly those cases. openrelay.metered.ca is a
+// commonly used free public TURN relay for small WebRTC projects like this
+// one — no signup needed, but as a shared free resource it can occasionally
+// be slow or rate-limited under heavy load.
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:80', username:'openrelayproject', credential:'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username:'openrelayproject', credential:'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username:'openrelayproject', credential:'openrelayproject' }
+];
+const PEER_OPTS = { config: { iceServers: ICE_SERVERS } };
+
 function resetPeerState(){
   hostConns.forEach(c=>{ try{ c.conn.close(); }catch(e){} });
   hostConns = [];
@@ -1720,7 +1738,7 @@ async function createRoom(){
 
 function tryOpenHostPeer(name, btn, attempt){
   const code = randomRoomCode();
-  const peer = new Peer(ROOM_ID_PREFIX + code);
+  const peer = new Peer(ROOM_ID_PREFIX + code, PEER_OPTS);
   let settled = false;
   const failTimer = setTimeout(()=>{
     if(settled) return;
@@ -1884,25 +1902,34 @@ async function joinRoomFlow(){
   btn.disabled = true; btn.textContent = 'Joining…';
   resetPeerState();
   lobbyIsHost = false;
+  let settled = false;
 
-  const peer = new Peer();
+  function fail(message){
+    if(settled) return;
+    settled = true;
+    if(joinTimeoutHandle){ clearTimeout(joinTimeoutHandle); joinTimeoutHandle=null; }
+    btn.disabled = false; btn.textContent = 'Join room';
+    errEl.textContent = message; errEl.style.display = 'block';
+    resetPeerState();
+  }
+
+  const peer = new Peer(undefined, PEER_OPTS);
   peer.on('open', ()=>{
     myPeer = peer;
     const conn = peer.connect(ROOM_ID_PREFIX + code, { reliable:true });
     guestConnToHost = conn;
-    let settled = false;
+
+    // Discovering the host is usually instant; actually establishing the
+    // WebRTC connection can take longer on tricky networks (that's what the
+    // TURN relay above is for), so this timeout is generous on purpose.
     joinTimeoutHandle = setTimeout(()=>{
-      if(settled) return;
-      settled = true;
-      btn.disabled=false; btn.textContent='Join room';
-      errEl.textContent = 'No room found with that code.'; errEl.style.display='block';
-      resetPeerState();
-    }, 7000);
+      fail("Couldn't reach that room — check the code, or the host's connection may be blocking direct play.");
+    }, 15000);
 
     conn.on('open', ()=>{
       if(settled) return;
       settled = true;
-      clearTimeout(joinTimeoutHandle);
+      clearTimeout(joinTimeoutHandle); joinTimeoutHandle = null;
       conn.send({ kind:'hello', name });
       conn.on('data', data=> handleGuestMessage(data));
       conn.on('close', ()=>{
@@ -1913,18 +1940,16 @@ async function joinRoomFlow(){
       lobbyCode = code;
       enterLobbyUI(code, false);
     });
-    conn.on('error', ()=>{
-      if(settled) return;
-      settled = true;
-      clearTimeout(joinTimeoutHandle);
-      btn.disabled=false; btn.textContent='Join room';
-      errEl.textContent = 'No room found with that code.'; errEl.style.display='block';
-      resetPeerState();
-    });
+    conn.on('error', ()=> fail('Could not connect to that room — please try again.'));
   });
   peer.on('error', err=>{
-    btn.disabled=false; btn.textContent='Join room';
-    errEl.textContent = 'Could not connect — please try again.'; errEl.style.display='block';
+    if(err && err.type === 'peer-unavailable'){
+      fail('No room found with that code.');
+    } else if(err && err.type === 'network'){
+      fail('Network error — check your connection and try again.');
+    } else {
+      fail('Could not connect — please try again.');
+    }
   });
 }
 document.getElementById('btnJoinRoom').addEventListener('click', ()=>{ Audio_.init(); joinRoomFlow(); });
