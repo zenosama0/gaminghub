@@ -8,8 +8,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
 <script src="../firebase-config.js"></script>
+<script src="../gamehub-cloud.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   :root{
     --bg-deep-solid:#0e1024;
@@ -940,6 +943,7 @@ function beginRoll(){
   if(!G || paused || G.winnerSeat !== null) return;
   if(G.diceRolled || G.awaitingChoice) return;
   if(!isMySeatTurn()) return;
+  if(G.mode==='online' && !G.online.isHost){ sendActionToHost({kind:'roll'}); return; }
   doRoll();
 }
 
@@ -1464,7 +1468,10 @@ function handleBoardClick(clientX, clientY){
       if(d < bestD){ bestD = d; best = it.tokenIdx; }
     });
   });
-  if(best!==null && bestD < cellPx*0.9) chooseMove(best);
+  if(best!==null && bestD < cellPx*0.9){
+    if(G.mode==='online' && !G.online.isHost){ sendActionToHost({kind:'move', tokenIdx:best}); return; }
+    chooseMove(best);
+  }
 }
 boardCanvas.addEventListener('click', e=> handleBoardClick(e.clientX, e.clientY));
 boardCanvas.addEventListener('touchend', e=>{
@@ -1479,7 +1486,10 @@ window.addEventListener('keydown', e=>{
   if(e.key===' '){ e.preventDefault(); beginRoll(); return; }
   if(['1','2','3','4'].includes(e.key) && G.awaitingChoice && isMySeatTurn()){
     const idx = +e.key - 1;
-    if(G.validTokens.includes(idx)) chooseMove(idx);
+    if(G.validTokens.includes(idx)){
+      if(G.mode==='online' && !G.online.isHost){ sendActionToHost({kind:'move', tokenIdx:idx}); }
+      else chooseMove(idx);
+    }
   }
   if(e.key==='p'||e.key==='P'||e.key==='Escape'){ if(G.mode!=='online') togglePause(); }
 });
@@ -1507,7 +1517,18 @@ function endGame(seatIdx){
   document.getElementById('btnPause').style.display = 'none';
   try{
     const w = parseInt(localStorage.getItem('ludo_local_wins')||'0',10);
-    if(isMineSeat(seatIdx)) localStorage.setItem('ludo_local_wins', String(w+1));
+    if(isMineSeat(seatIdx)){
+      const newTotal = w+1;
+      localStorage.setItem('ludo_local_wins', String(newTotal));
+      // Firebase is only ever used here — to remember a win count against your
+      // account, if you're signed in on the hub. It never touches gameplay.
+      try{
+        if(window.GameHubCloud && window.GameHubCloud.currentUser()){
+          const u = window.GameHubCloud.currentUser();
+          window.GameHubCloud.pushScore(u.uid, 'ludo', newTotal, u.displayName || 'Player').catch(()=>{});
+        }
+      }catch(e){}
+    }
   }catch(e){}
 }
 function isMineSeat(seatIdx){
@@ -1520,10 +1541,7 @@ document.getElementById('btnPlayAgain').addEventListener('click', ()=>{
   if(!G) return;
   document.getElementById('overlayGameOver').classList.remove('visible');
   if(G.mode==='online'){
-    if(G.online.isHost){
-      const seats = G.seats;
-      pushRoomReset(seats);
-    }
+    if(G.online.isHost) hostRestartGame();
   } else {
     startGame(G.mode, G.seats.map(s=>({...s})));
   }
@@ -1638,16 +1656,25 @@ document.getElementById('hostCountRow').addEventListener('click', e=>{
   hostCount = +b.dataset.count;
 });
 
-/* ============================= ONLINE: FIRESTORE ROOMS ============================= */
-let db = null;
-try{ db = firebase.firestore(); }catch(e){ console.warn('Firestore unavailable', e); }
-
-function getLocalUid(){
-  let id = localStorage.getItem('ludo_client_id');
-  if(!id){ id = 'p_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); localStorage.setItem('ludo_client_id', id); }
-  return id;
-}
-const LOCAL_UID = getLocalUid();
+/* ============================= ONLINE: PEER-TO-PEER ROOMS (PeerJS/WebRTC) =============================
+   No backend of ours is involved in gameplay — a host's browser opens a
+   WebRTC peer with an id derived from the room code, and everyone else
+   connects straight to that peer. PeerJS's public broker only helps two
+   browsers find each other; once connected, game messages travel directly
+   between players. Firebase is never touched for any of this.
+   ---------------------------------------------------------------------
+   Message shapes (JSON over the data channel):
+     guest -> host : {kind:'hello', name}
+                      {kind:'roll'}
+                      {kind:'move', tokenIdx}
+     host -> guest : {type:'lobby', maxPlayers, players:[{uid,name,isCPU}]}
+                      {type:'start', seats, tokens}
+                      {type:'state', tokens, turnSeat, dice, diceRolled,
+                       sixStreak, awaitingChoice, validTokens, winnerSeat, seats}
+                      {type:'toast', text}
+                      {type:'closed'}
+   ============================================================ */
+const ROOM_ID_PREFIX = 'auroraludo-';
 
 function randomRoomCode(){
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1656,100 +1683,301 @@ function randomRoomCode(){
   return s;
 }
 
+/* ---- shared peer/lobby state ---- */
+let myPeer = null;              // this tab's Peer object (host or guest)
+let hostConns = [];             // (host only) array of {uid, conn, name, isCPU}
+let lobbyPlayers = [];          // (host only) [{uid,name,isCPU}]
+let lobbyMaxPlayers = 4;
+let lobbyCode = null;
+let lobbyIsHost = false;
+let guestConnToHost = null;     // (guest only) connection object to the host
+let joinTimeoutHandle = null;
+
+function peerAvailable(){ return typeof Peer !== 'undefined'; }
+
+function resetPeerState(){
+  hostConns.forEach(c=>{ try{ c.conn.close(); }catch(e){} });
+  hostConns = [];
+  lobbyPlayers = [];
+  lobbyCode = null; lobbyIsHost = false;
+  guestConnToHost = null;
+  if(joinTimeoutHandle){ clearTimeout(joinTimeoutHandle); joinTimeoutHandle=null; }
+  if(myPeer){ try{ myPeer.destroy(); }catch(e){} myPeer = null; }
+}
+
+/* ---------------------------- HOST ---------------------------- */
 async function createRoom(){
-  if(!db){ alert('Online play needs Firestore configured — see ../firebase-config.js'); return; }
+  if(!peerAvailable()){ alert('Online play needs a network connection to load the multiplayer library — please check your connection and reload.'); return; }
   const name = document.getElementById('hostNameInput').value.trim() || 'Host';
   const btn = document.getElementById('btnCreateRoom');
   btn.disabled = true; btn.textContent = 'Creating…';
-  let code, attempts=0, ref;
-  do{
-    code = randomRoomCode();
-    ref = db.collection('ludoRooms').doc(code);
-    const snap = await ref.get();
-    if(!snap.exists) break;
-    attempts++;
-  } while(attempts<6);
+  resetPeerState();
+  lobbyMaxPlayers = hostCount;
+  lobbyIsHost = true;
 
-  const roomData = {
-    code,
-    hostUid: LOCAL_UID,
-    maxPlayers: hostCount,
-    status: 'lobby',
-    createdAt: Date.now(),
-    players: [{ uid: LOCAL_UID, name, isCPU:false }],
-    turnSeat: 0,
-    dice: 0,
-    diceRolled: false,
-    awaitingChoice: false,
-    validTokens: [],
-    sixStreak: 0,
-    tokens: {},
-    winnerSeat: null
-  };
-  await ref.set(roomData);
-  btn.disabled = false; btn.textContent = 'Create room';
-  enterLobby(code, true);
+  tryOpenHostPeer(name, btn, 0);
+}
+
+function tryOpenHostPeer(name, btn, attempt){
+  const code = randomRoomCode();
+  const peer = new Peer(ROOM_ID_PREFIX + code);
+  let settled = false;
+  const failTimer = setTimeout(()=>{
+    if(settled) return;
+    settled = true;
+    peer.destroy();
+    if(attempt < 5) tryOpenHostPeer(name, btn, attempt+1);
+    else { btn.disabled=false; btn.textContent='Create room'; alert('Could not open a room right now — please try again.'); }
+  }, 6000);
+
+  peer.on('open', ()=>{
+    if(settled) return;
+    settled = true;
+    clearTimeout(failTimer);
+    myPeer = peer;
+    lobbyCode = code;
+    lobbyPlayers = [{ uid:'HOST', name, isCPU:false }];
+    btn.disabled = false; btn.textContent = 'Create room';
+    peer.on('connection', conn => setupHostConnection(conn));
+    peer.on('error', err => console.warn('Peer error', err));
+    enterLobbyUI(code, true);
+    renderLobby();
+  });
+  peer.on('error', err=>{
+    if(settled) return;
+    if(err && err.type === 'unavailable-id'){
+      settled = true; clearTimeout(failTimer); peer.destroy();
+      if(attempt < 5) tryOpenHostPeer(name, btn, attempt+1);
+      else { btn.disabled=false; btn.textContent='Create room'; alert('Could not find a free room code — please try again.'); }
+    }
+  });
 }
 document.getElementById('btnCreateRoom').addEventListener('click', ()=>{ Audio_.init(); createRoom(); });
 
+function setupHostConnection(conn){
+  conn.on('data', data=> handleHostMessage(conn, data));
+  conn.on('close', ()=> handleGuestLeft(conn));
+  conn.on('error', ()=> handleGuestLeft(conn));
+}
+
+function handleHostMessage(conn, msg){
+  if(!msg || !msg.kind) return;
+  if(msg.kind === 'hello'){
+    if(G && G.mode==='online'){ return; } // game already running, ignore late joins
+    if(lobbyPlayers.length >= lobbyMaxPlayers){ conn.send({type:'full'}); return; }
+    const name = (msg.name||'Player').slice(0,16);
+    hostConns.push({ uid: conn.peer, conn, name, isCPU:false });
+    lobbyPlayers.push({ uid: conn.peer, name, isCPU:false });
+    renderLobby();
+    broadcastLobby();
+    return;
+  }
+  if(!G || G.mode !== 'online') return;
+  const seat = G.seats[G.turnSeat];
+  if(!seat || seat.uid !== conn.peer) return; // not this player's turn — ignore
+  if(msg.kind === 'roll'){
+    if(G.diceRolled || G.awaitingChoice) return;
+    doRoll();
+  } else if(msg.kind === 'move'){
+    if(!G.awaitingChoice) return;
+    if(!G.validTokens.includes(msg.tokenIdx)) return;
+    chooseMove(msg.tokenIdx);
+  }
+}
+
+function handleGuestLeft(conn){
+  const idx = hostConns.findIndex(c=>c.conn===conn);
+  if(idx===-1) return;
+  const left = hostConns[idx];
+  hostConns.splice(idx,1);
+  if(!G || G.mode !== 'online'){
+    // still in lobby
+    lobbyPlayers = lobbyPlayers.filter(p=>p.uid!==left.uid);
+    renderLobby();
+    broadcastLobby();
+    return;
+  }
+  // mid-game: hand their seat to the CPU rather than stalling everyone else
+  const seat = G.seats.find(s=>s.uid===left.uid);
+  if(seat){
+    seat.isCPU = true;
+    showToast(seat.name + ' disconnected — CPU continues for them');
+    broadcastState();
+    maybeAutoCPU();
+  }
+}
+
+function broadcastLobby(){
+  const payload = { type:'lobby', maxPlayers: lobbyMaxPlayers, players: lobbyPlayers };
+  hostConns.forEach(c=>{ try{ c.conn.send(payload); }catch(e){} });
+}
+
+function broadcastToAll(payload){
+  hostConns.forEach(c=>{ try{ c.conn.send(payload); }catch(e){} });
+}
+
+function broadcastState(){
+  if(!G || G.mode!=='online' || !G.online.isHost) return;
+  broadcastToAll({
+    type:'state',
+    tokens: G.tokens, turnSeat: G.turnSeat, dice: G.dice, diceRolled: G.diceRolled,
+    sixStreak: G.sixStreak, awaitingChoice: G.awaitingChoice, validTokens: G.validTokens,
+    winnerSeat: G.winnerSeat, seats: G.seats
+  });
+}
+// same name used throughout the turn-flow code above
+function syncOnlineState(){ broadcastState(); }
+
+async function removeSeat(i){
+  const p = lobbyPlayers[i];
+  if(!p || p.uid==='HOST') return;
+  const hc = hostConns.find(c=>c.uid===p.uid);
+  if(hc){ try{ hc.conn.close(); }catch(e){} hostConns = hostConns.filter(c=>c!==hc); }
+  lobbyPlayers.splice(i,1);
+  renderLobby();
+  broadcastLobby();
+}
+
+document.getElementById('btnAddCpu').addEventListener('click', ()=>{
+  if(lobbyPlayers.length >= lobbyMaxPlayers) return;
+  const cpuNum = lobbyPlayers.filter(p=>p.isCPU).length + 1;
+  lobbyPlayers.push({ uid:'cpu_'+cpuNum+'_'+Date.now().toString(36), name:'CPU '+cpuNum, isCPU:true });
+  renderLobby();
+  broadcastLobby();
+});
+
+document.getElementById('btnStartOnline').addEventListener('click', ()=>{
+  if(lobbyPlayers.length < 2) return;
+  const n = lobbyPlayers.length;
+  const colors = pickSeatColors(n);
+  const tokens = {};
+  colors.forEach(ci=> tokens[ci]=[0,0,0,0]);
+  const seats = lobbyPlayers.map((p,i)=> ({ uid:p.uid, name:p.name, isCPU:p.isCPU, colorIndex:colors[i] }));
+  broadcastToAll({ type:'start', seats, tokens });
+  launchOnlineGameAsHost(seats, tokens);
+});
+
+async function hostRestartGame(){
+  const n = G.seats.length;
+  const colors = pickSeatColors(n);
+  const tokens = {};
+  colors.forEach(ci=> tokens[ci]=[0,0,0,0]);
+  const seats = G.seats.map((s,i)=> ({ uid:s.uid, name:s.name, isCPU:s.isCPU, colorIndex:colors[i] }));
+  broadcastToAll({ type:'start', seats, tokens });
+  launchOnlineGameAsHost(seats, tokens);
+}
+
+function sendActionToHost(payload){
+  if(guestConnToHost){ try{ guestConnToHost.send(payload); }catch(e){} }
+}
+
+/* ---------------------------- GUEST ---------------------------- */
 async function joinRoomFlow(){
-  if(!db){ alert('Online play needs Firestore configured — see ../firebase-config.js'); return; }
+  if(!peerAvailable()){ alert('Online play needs a network connection to load the multiplayer library — please check your connection and reload.'); return; }
   const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
   const name = document.getElementById('joinNameInput').value.trim() || 'Player';
   const errEl = document.getElementById('joinError');
-  errEl.style.display='none';
-  if(code.length<4){ errEl.textContent='Enter the room code.'; errEl.style.display='block'; return; }
-  const ref = db.collection('ludoRooms').doc(code);
-  const snap = await ref.get();
-  if(!snap.exists){ errEl.textContent='No room found with that code.'; errEl.style.display='block'; return; }
-  const data = snap.data();
-  if(data.status!=='lobby'){ errEl.textContent='That game has already started.'; errEl.style.display='block'; return; }
-  if(data.players.some(p=>p.uid===LOCAL_UID)){ enterLobby(code,false); return; }
-  if(data.players.length >= data.maxPlayers){ errEl.textContent='That room is full.'; errEl.style.display='block'; return; }
-  const players = data.players.concat([{ uid:LOCAL_UID, name, isCPU:false }]);
-  await ref.update({ players });
-  enterLobby(code, false);
+  errEl.style.display = 'none';
+  if(code.length < 4){ errEl.textContent='Enter the room code.'; errEl.style.display='block'; return; }
+
+  const btn = document.getElementById('btnJoinRoom');
+  btn.disabled = true; btn.textContent = 'Joining…';
+  resetPeerState();
+  lobbyIsHost = false;
+
+  const peer = new Peer();
+  peer.on('open', ()=>{
+    myPeer = peer;
+    const conn = peer.connect(ROOM_ID_PREFIX + code, { reliable:true });
+    guestConnToHost = conn;
+    let settled = false;
+    joinTimeoutHandle = setTimeout(()=>{
+      if(settled) return;
+      settled = true;
+      btn.disabled=false; btn.textContent='Join room';
+      errEl.textContent = 'No room found with that code.'; errEl.style.display='block';
+      resetPeerState();
+    }, 7000);
+
+    conn.on('open', ()=>{
+      if(settled) return;
+      settled = true;
+      clearTimeout(joinTimeoutHandle);
+      conn.send({ kind:'hello', name });
+      conn.on('data', data=> handleGuestMessage(data));
+      conn.on('close', ()=>{
+        showToast('Lost connection to host');
+        setTimeout(backToMenu, 1200);
+      });
+      btn.disabled = false; btn.textContent = 'Join room';
+      lobbyCode = code;
+      enterLobbyUI(code, false);
+    });
+    conn.on('error', ()=>{
+      if(settled) return;
+      settled = true;
+      clearTimeout(joinTimeoutHandle);
+      btn.disabled=false; btn.textContent='Join room';
+      errEl.textContent = 'No room found with that code.'; errEl.style.display='block';
+      resetPeerState();
+    });
+  });
+  peer.on('error', err=>{
+    btn.disabled=false; btn.textContent='Join room';
+    errEl.textContent = 'Could not connect — please try again.'; errEl.style.display='block';
+  });
 }
 document.getElementById('btnJoinRoom').addEventListener('click', ()=>{ Audio_.init(); joinRoomFlow(); });
 
-let lobbyUnsub = null;
-let lobbyRoomRef = null;
-let lobbyIsHost = false;
-let lobbyCode = null;
-let gameUnsub = null;
-let lastAppliedStatus = null;
-let cpuTurnLock = false;
+function handleGuestMessage(msg){
+  if(!msg || !msg.type) return;
+  if(msg.type === 'full'){
+    document.getElementById('joinError').textContent = 'That room is full.';
+    document.getElementById('joinError').style.display = 'block';
+    resetPeerState();
+    showScreen('screenJoin');
+    return;
+  }
+  if(msg.type === 'lobby'){
+    lobbyMaxPlayers = msg.maxPlayers;
+    lobbyPlayers = msg.players;
+    renderLobby();
+    return;
+  }
+  if(msg.type === 'start'){
+    launchOnlineGameAsGuest(msg.seats, msg.tokens);
+    return;
+  }
+  if(msg.type === 'state'){
+    applyRemoteState(msg);
+    return;
+  }
+  if(msg.type === 'toast'){
+    showToast(msg.text);
+    return;
+  }
+  if(msg.type === 'closed'){
+    showToast('Host closed the room');
+    setTimeout(backToMenu, 1200);
+  }
+}
 
-function enterLobby(code, isHost){
-  lobbyCode = code; lobbyIsHost = isHost;
-  lobbyRoomRef = db.collection('ludoRooms').doc(code);
-  localStorage.setItem('ludo_last_room', code);
+/* ---------------------------- SHARED LOBBY / LAUNCH ---------------------------- */
+function enterLobbyUI(code, isHost){
   document.getElementById('lobbyCode').textContent = code;
   document.getElementById('lobbyCodeSub').textContent = isHost ? 'Share this code so friends can join' : 'You joined this room';
   document.getElementById('btnAddCpu').style.display = isHost ? 'inline-block' : 'none';
   document.getElementById('btnStartOnline').style.display = isHost ? 'inline-block' : 'none';
   showScreen('screenLobby');
-
-  if(lobbyUnsub) lobbyUnsub();
-  lobbyUnsub = lobbyRoomRef.onSnapshot(snap=>{
-    if(!snap.exists){ return; }
-    const data = snap.data();
-    if(data.status === 'playing'){
-      lobbyUnsub && lobbyUnsub(); lobbyUnsub = null;
-      launchOnlineGame(code, isHost, data);
-      return;
-    }
-    renderLobby(data, isHost);
-  });
 }
 
-function renderLobby(data, isHost){
-  document.getElementById('lobbyTitle').textContent = data.players.length + ' of ' + data.maxPlayers + ' seats filled';
+function renderLobby(){
+  document.getElementById('lobbyTitle').textContent = lobbyPlayers.length + ' of ' + lobbyMaxPlayers + ' seats filled';
   const seatList = document.getElementById('seatList');
   seatList.innerHTML = '';
-  const colors = pickSeatColors(data.maxPlayers);
-  for(let i=0;i<data.maxPlayers;i++){
-    const p = data.players[i];
+  const colors = pickSeatColors(lobbyMaxPlayers);
+  for(let i=0;i<lobbyMaxPlayers;i++){
+    const p = lobbyPlayers[i];
     const row = document.createElement('div');
     row.className = 'seat-row' + (p?'':' empty');
     const dot = document.createElement('div');
@@ -1760,13 +1988,13 @@ function renderLobby(data, isHost){
     row.appendChild(dot);
     const nm = document.createElement('div');
     nm.className = 'seat-name';
-    nm.textContent = p ? (p.name + (p.isCPU?' (CPU)':'') + (p.uid===data.hostUid?' · host':'')) : 'Open seat';
+    nm.textContent = p ? (p.name + (p.isCPU?' (CPU)':'') + (p.uid==='HOST'?' · host':'')) : 'Open seat';
     row.appendChild(nm);
     if(!p){
       const tag = document.createElement('div');
       tag.className='seat-tag'; tag.textContent='empty';
       row.appendChild(tag);
-    } else if(isHost && p.uid!==data.hostUid){
+    } else if(lobbyIsHost && p.uid!=='HOST'){
       const rm = document.createElement('div');
       rm.className='seat-remove'; rm.textContent='remove';
       rm.addEventListener('click', ()=> removeSeat(i));
@@ -1774,84 +2002,43 @@ function renderLobby(data, isHost){
     }
     seatList.appendChild(row);
   }
-  document.getElementById('lobbyHint').textContent = isHost
+  document.getElementById('lobbyHint').textContent = lobbyIsHost
     ? 'Start once at least one other player has joined — empty seats stay unused.'
     : 'Waiting for the host to start the game…';
   const startBtn = document.getElementById('btnStartOnline');
-  if(isHost){
-    startBtn.disabled = data.players.length < 2;
-  }
+  if(lobbyIsHost) startBtn.disabled = lobbyPlayers.length < 2;
   const addCpuBtn = document.getElementById('btnAddCpu');
-  if(isHost) addCpuBtn.style.display = data.players.length < data.maxPlayers ? 'inline-block' : 'none';
+  if(lobbyIsHost) addCpuBtn.style.display = lobbyPlayers.length < lobbyMaxPlayers ? 'inline-block' : 'none';
 }
-
-async function removeSeat(i){
-  const snap = await lobbyRoomRef.get();
-  const data = snap.data();
-  const players = data.players.slice();
-  players.splice(i,1);
-  await lobbyRoomRef.update({ players });
-}
-
-document.getElementById('btnAddCpu').addEventListener('click', async ()=>{
-  const snap = await lobbyRoomRef.get();
-  const data = snap.data();
-  if(data.players.length >= data.maxPlayers) return;
-  const cpuNum = data.players.filter(p=>p.isCPU).length + 1;
-  const players = data.players.concat([{ uid: 'cpu_'+cpuNum+'_'+Date.now(), name: 'CPU '+cpuNum, isCPU:true }]);
-  await lobbyRoomRef.update({ players });
-});
-
-document.getElementById('btnStartOnline').addEventListener('click', async ()=>{
-  const snap = await lobbyRoomRef.get();
-  const data = snap.data();
-  if(data.players.length < 2) return;
-  const n = data.players.length;
-  const colors = pickSeatColors(n);
-  const tokens = {};
-  colors.forEach(ci=> tokens[ci] = [0,0,0,0]);
-  const seats = data.players.map((p,i)=> ({ ...p, colorIndex: colors[i] }));
-  await lobbyRoomRef.update({
-    status:'playing', players:seats, tokens, turnSeat:0, dice:0, diceRolled:false,
-    awaitingChoice:false, validTokens:[], sixStreak:0, winnerSeat:null
-  });
-});
 
 document.getElementById('lobbyLeaveLink').addEventListener('click', ()=> leaveOnlineRoom());
 
-async function leaveOnlineRoom(){
-  if(lobbyUnsub){ lobbyUnsub(); lobbyUnsub=null; }
-  if(gameUnsub){ gameUnsub(); gameUnsub=null; }
-  try{
-    if(lobbyRoomRef){
-      const snap = await lobbyRoomRef.get();
-      if(snap.exists){
-        const data = snap.data();
-        const players = data.players.filter(p=>p.uid!==LOCAL_UID);
-        if(players.length===0){ await lobbyRoomRef.delete(); }
-        else await lobbyRoomRef.update({ players });
-      }
-    }
-  }catch(e){ /* room may already be gone */ }
-  localStorage.removeItem('ludo_last_room');
-  lobbyRoomRef = null; lobbyCode = null;
+function leaveOnlineRoom(){
+  if(lobbyIsHost) broadcastToAll({ type:'closed' });
+  resetPeerState();
   showScreen('screenMode');
 }
 
-function launchOnlineGame(code, isHost, data){
-  const seats = data.players.map(p=>({ colorIndex:p.colorIndex, name:p.name, isCPU:p.isCPU, uid:p.uid }));
+function launchOnlineGameAsHost(seats, tokens){
+  buildOnlineGameState(seats, tokens, 'HOST', true);
+}
+function launchOnlineGameAsGuest(seats, tokens){
+  buildOnlineGameState(seats, tokens, myPeer.id, false);
+}
+
+function buildOnlineGameState(seats, tokens, localUid, isHost){
   G = {
     mode:'online',
     seats,
-    tokens: data.tokens,
-    turnSeat: data.turnSeat,
-    dice: data.dice,
-    diceRolled: data.diceRolled,
-    sixStreak: data.sixStreak,
-    awaitingChoice: data.awaitingChoice,
-    validTokens: data.validTokens||[],
-    winnerSeat: data.winnerSeat,
-    online: { roomCode:code, isHost, localUid:LOCAL_UID, roomRef: db.collection('ludoRooms').doc(code) }
+    tokens,
+    turnSeat: 0,
+    dice: 0,
+    diceRolled: false,
+    sixStreak: 0,
+    awaitingChoice: false,
+    validTokens: [],
+    winnerSeat: null,
+    online: { roomCode: lobbyCode, isHost, localUid }
   };
   paused = false;
   document.getElementById('menuRoot').style.display = 'none';
@@ -1862,32 +2049,13 @@ function launchOnlineGame(code, isHost, data){
   computeLayout();
   Audio_.init();
   updateTurnCaption(); renderDice(); renderBoard();
-
-  gameUnsub = G.online.roomRef.onSnapshot(snap=>{
-    if(!snap.exists){ showToast('Room closed'); setTimeout(backToMenu, 1200); return; }
-    const d = snap.data();
-    if(d.status==='lobby'){ // host reset for "play again"
-      const seats2 = d.players.map(p=>({ colorIndex:p.colorIndex||0, name:p.name, isCPU:p.isCPU, uid:p.uid }));
-      G.seats = seats2;
-      leaveOnlineRoom_softReturnToLobby(d);
-      return;
-    }
-    applyRemoteState(d);
-  });
-}
-
-function leaveOnlineRoom_softReturnToLobby(d){
-  if(gameUnsub){ gameUnsub(); gameUnsub=null; }
-  G = null;
-  document.getElementById('gameArea').style.display='none';
-  document.getElementById('menuRoot').style.display='flex';
-  enterLobby(d.code, d.hostUid===LOCAL_UID);
+  if(isHost) maybeAutoCPU();
 }
 
 function applyRemoteState(d){
   if(!G) return;
   const wasWinner = G.winnerSeat;
-  G.seats = d.players.map(p=>({ colorIndex:p.colorIndex, name:p.name, isCPU:p.isCPU, uid:p.uid }));
+  G.seats = d.seats;
   G.tokens = d.tokens;
   G.turnSeat = d.turnSeat;
   G.dice = d.dice;
@@ -1901,57 +2069,7 @@ function applyRemoteState(d){
   if(G.winnerSeat!==null && wasWinner===null){
     endGame(G.winnerSeat);
   }
-  if(G.winnerSeat===null){
-    maybeAutoCPU();
-  }
 }
-
-async function pushRoomReset(seats){
-  const colors = pickSeatColors(seats.length);
-  const players = seats.map((s,i)=> ({ uid:s.uid, name:s.name, isCPU:s.isCPU }));
-  const tokens = {};
-  colors.forEach(ci=> tokens[ci]=[0,0,0,0]);
-  await G.online.roomRef.update({
-    status:'playing', players: players.map((p,i)=>({...p, colorIndex:colors[i]})),
-    tokens, turnSeat:0, dice:0, diceRolled:false, awaitingChoice:false, validTokens:[], sixStreak:0, winnerSeat:null
-  });
-}
-
-function syncOnlineState(){
-  if(!G || G.mode!=='online') return;
-  if(!isMySeatTurn() && !(G.seats[G.turnSeat] && G.seats[G.turnSeat].isCPU && G.online.isHost)) return;
-  G.online.roomRef.update({
-    tokens: G.tokens,
-    turnSeat: G.turnSeat,
-    dice: G.dice,
-    diceRolled: G.diceRolled,
-    sixStreak: G.sixStreak,
-    awaitingChoice: G.awaitingChoice,
-    validTokens: G.validTokens,
-    winnerSeat: G.winnerSeat
-  }).catch(()=>{});
-}
-
-/* rejoin last room shortcut */
-(function offerRejoin(){
-  const last = localStorage.getItem('ludo_last_room');
-  if(last){
-    document.getElementById('rejoinBox').style.display = 'block';
-    document.getElementById('rejoinText').textContent = 'You were in room ' + last + '.';
-    document.getElementById('btnRejoin').addEventListener('click', async ()=>{
-      if(!db) return;
-      const ref = db.collection('ludoRooms').doc(last);
-      const snap = await ref.get();
-      if(!snap.exists){ localStorage.removeItem('ludo_last_room'); document.getElementById('rejoinBox').style.display='none'; return; }
-      const data = snap.data();
-      const isHost = data.hostUid===LOCAL_UID;
-      const stillIn = data.players.some(p=>p.uid===LOCAL_UID);
-      if(!stillIn){ localStorage.removeItem('ludo_last_room'); document.getElementById('rejoinBox').style.display='none'; return; }
-      if(data.status==='lobby') enterLobby(last, isHost);
-      else launchOnlineGame(last, isHost, data);
-    });
-  }
-})();
 
 /* ============================= BACKGROUND LOOP ============================= */
 let lastBgTime = 0;
