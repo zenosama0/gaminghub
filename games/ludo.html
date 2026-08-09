@@ -102,18 +102,41 @@
   .player-crown{font-size:12px;}
 
   .dice-wrap{ display:flex;flex-direction:column;align-items:center;gap:10px; }
+  .die-stage{ perspective:340px; }
   .die{
-    width:56px;height:56px;border-radius:14px;
-    background:linear-gradient(160deg, #fbf7ec, #e9e2cf);
+    width:56px;height:56px;border-radius:15px;
+    background:
+      radial-gradient(120% 140% at 28% 18%, rgba(255,255,255,0.95), rgba(255,255,255,0) 45%),
+      linear-gradient(160deg, #fdfbf4 0%, #efe7d2 55%, #d8ceb2 100%);
     display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
-    padding:9px;box-shadow:0 10px 24px -8px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(0,0,0,0.06);
-    cursor:pointer;transition:transform .1s ease;
+    padding:9px;
+    box-shadow:
+      0 16px 28px -10px rgba(0,0,0,0.6),
+      0 3px 0 rgba(255,255,255,0.55) inset,
+      0 -8px 14px -4px rgba(60,50,30,0.35) inset,
+      0 0 0 1px rgba(60,50,30,0.18);
+    cursor:pointer;
+    transition:transform .12s ease;
+    transform-style:preserve-3d;
+    will-change:transform;
   }
   .die:active{transform:scale(0.94);}
   .die.disabled{opacity:0.45;cursor:default;}
-  .die.rolling{ animation:diceShake .5s ease; }
-  @keyframes diceShake{ 0%,100%{transform:rotate(0);} 20%{transform:rotate(-8deg);} 40%{transform:rotate(7deg);} 60%{transform:rotate(-5deg);} 80%{transform:rotate(4deg);} }
-  .pip{border-radius:50%;background:#10112a;width:9px;height:9px;justify-self:center;align-self:center;opacity:0;}
+  .die.rolling{ animation:diceTumble3d .62s cubic-bezier(.25,.6,.35,1); }
+  @keyframes diceTumble3d{
+    0%{ transform:rotateX(0) rotateY(0) rotateZ(0) scale(1); }
+    22%{ transform:rotateX(140deg) rotateY(70deg) rotateZ(12deg) scale(1.06); }
+    46%{ transform:rotateX(250deg) rotateY(200deg) rotateZ(-14deg) scale(1.1); }
+    70%{ transform:rotateX(330deg) rotateY(310deg) rotateZ(8deg) scale(1.04); }
+    88%{ transform:rotateX(370deg) rotateY(370deg) rotateZ(-3deg) scale(1.01); }
+    100%{ transform:rotateX(360deg) rotateY(360deg) rotateZ(0) scale(1); }
+  }
+  .pip{
+    border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, #4a4a5c, #0d0e22 72%);
+    box-shadow:0 1px 1px rgba(255,255,255,0.35), inset 0 1px 1px rgba(0,0,0,0.4);
+    width:9px;height:9px;justify-self:center;align-self:center;opacity:0;
+  }
   .pip.on{opacity:1;}
   .roll-btn{
     font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;
@@ -350,10 +373,12 @@
     <div class="panel panel-col right">
       <div class="turn-caption" id="turnCaption">—</div>
       <div class="dice-wrap">
-        <div class="die" id="dieEl">
-          <div class="pip" data-i="0"></div><div class="pip" data-i="1"></div><div class="pip" data-i="2"></div>
-          <div class="pip" data-i="3"></div><div class="pip" data-i="4"></div><div class="pip" data-i="5"></div>
-          <div class="pip" data-i="6"></div><div class="pip" data-i="7"></div><div class="pip" data-i="8"></div>
+        <div class="die-stage">
+          <div class="die" id="dieEl">
+            <div class="pip" data-i="0"></div><div class="pip" data-i="1"></div><div class="pip" data-i="2"></div>
+            <div class="pip" data-i="3"></div><div class="pip" data-i="4"></div><div class="pip" data-i="5"></div>
+            <div class="pip" data-i="6"></div><div class="pip" data-i="7"></div><div class="pip" data-i="8"></div>
+          </div>
         </div>
         <button class="roll-btn" id="btnRoll">Roll</button>
       </div>
@@ -649,14 +674,37 @@ const Audio_ = (function(){
     osc.start(t); osc.stop(t+dur+0.02);
   }
 
+  function noiseBurst(t, dur, freq, vol){
+    const bufferSize = Math.floor(ctx.sampleRate*dur);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+    const src = ctx.createBufferSource(); src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass'; filter.frequency.value = freq; filter.Q.value = 1.1;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    src.connect(filter); filter.connect(g); g.connect(sfxGain);
+    src.start(t); src.stop(t+dur);
+  }
+
   let playBellPublic = (f,t,v)=>{ ensureCtx(); playBell(f,t,v); };
 
   const SFX = {
     diceRoll(){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      for(let i=0;i<4;i++) tone(t+i*0.055, 260+Math.random()*140, 0.05, 'triangle', 0.035);
+      // a little rattle of clicks (like dice knocking in a cupped hand),
+      // settling into a soft low thud as they come to rest
+      for(let i=0;i<6;i++){
+        const tt = t + i*0.065 + Math.random()*0.02;
+        noiseBurst(tt, 0.045, 850+Math.random()*700, 0.05);
+        tone(tt, 500+Math.random()*300, 0.03, 'triangle', 0.02);
+      }
+      tone(t+0.46, 150, 0.14, 'triangle', 0.045, 90);
     },
+    diceTick(){ if(!sfxOn||!ctx) return; noiseBurst(ctx.currentTime, 0.03, 1000+Math.random()*500, 0.03); },
     move(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 380, 0.05, 'sine', 0.035); },
     capture(){
       if(!sfxOn||!ctx) return;
@@ -857,6 +905,7 @@ function startGame(mode, seats, presetTokens, presetTurn){
     awaitingChoice: false,
     validTokens: [],
     winnerSeat: null,
+    animating: false,
     online: G && G.online ? G.online : null
   };
   paused = false;
@@ -942,7 +991,7 @@ function checkWinner(){
 
 /* ============================= TURN FLOW ============================= */
 function beginRoll(){
-  if(!G || paused || G.winnerSeat !== null) return;
+  if(!G || paused || G.winnerSeat !== null || G.animating) return;
   if(G.diceRolled || G.awaitingChoice) return;
   if(!isMySeatTurn()) return;
   if(G.mode==='online' && !G.online.isHost){ sendActionToHost({kind:'roll'}); return; }
@@ -957,14 +1006,14 @@ function doRoll(){
   const shuffle = setInterval(()=>{
     setDiceFace(1+Math.floor(Math.random()*6));
     ticks++;
-    if(ticks>7){
+    if(ticks>10){
       clearInterval(shuffle);
       die.classList.remove('rolling');
       const r = rollValue();
       setDiceFace(r);
       onRolled(r);
     }
-  }, 55);
+  }, 58);
 }
 
 function onRolled(r){
@@ -1034,25 +1083,27 @@ function chooseMove(tokenIdx){
   const seat = G.seats[G.turnSeat];
   const ci = seat.colorIndex;
   const r = G.dice;
+  const oldTokens = JSON.parse(JSON.stringify(G.tokens));
   const { captured, finished } = applyMove(ci, tokenIdx, r);
-  Audio_.sfx.move();
-  if(captured){ Audio_.sfx.capture(); showToast('Captured!'); }
-  if(finished){ Audio_.sfx.enterHome(); showToast('Home!'); }
   G.awaitingChoice = false;
   G.validTokens = [];
+  G.animating = true;
+  renderDice(); updateTurnCaption();
 
-  const winSeat = checkWinner();
-  if(winSeat !== null){
-    G.winnerSeat = winSeat;
+  animateBoardTransition(oldTokens, G.tokens, ()=>{
+    G.animating = false;
+    const winSeat = checkWinner();
+    if(winSeat !== null){
+      G.winnerSeat = winSeat;
+      syncOnlineState();
+      renderBoard();
+      setTimeout(()=> endGame(winSeat), 400);
+      return;
+    }
     syncOnlineState();
-    renderBoard();
-    setTimeout(()=> endGame(winSeat), 500);
-    return;
-  }
-
-  syncOnlineState();
-  renderBoard(); renderDice(); updateTurnCaption();
-  setTimeout(()=> resolveTurnEnd(r, true, captured, finished), 350);
+    renderBoard(); renderDice(); updateTurnCaption();
+    setTimeout(()=> resolveTurnEnd(r, true, captured, finished), 200);
+  });
 }
 
 function resolveTurnEnd(r, moveHappened, captured, finished){
@@ -1073,7 +1124,7 @@ function resolveTurnEnd(r, moveHappened, captured, finished){
   if(!moveHappened) extra = false;
 
   G.diceRolled = false;
-  G.dice = 0;
+  // keep showing the last-rolled face rather than blanking the die between turns
   if(!extra){
     G.turnSeat = (G.turnSeat + 1) % G.seats.length;
   }
@@ -1083,13 +1134,13 @@ function resolveTurnEnd(r, moveHappened, captured, finished){
 }
 
 function maybeAutoCPU(){
-  if(!G || paused || G.winnerSeat !== null) return;
+  if(!G || paused || G.winnerSeat !== null || G.animating) return;
   const seat = G.seats[G.turnSeat];
   if(!seat) return;
   if(seat.isCPU){
     if(G.mode==='online' && !G.online.isHost) return; // only host drives CPU seats online
     setTimeout(()=>{
-      if(!G || paused || G.winnerSeat !== null) return;
+      if(!G || paused || G.winnerSeat !== null || G.animating) return;
       const s2 = G.seats[G.turnSeat];
       if(!s2 || !s2.isCPU) return;
       if(!G.diceRolled) doRoll();
@@ -1157,11 +1208,13 @@ function setDiceFace(v){
 }
 function renderDice(){
   if(!G) return;
-  if(G.dice>0) setDiceFace(G.dice); else setDiceFace(0);
+  // keep showing the last-rolled face between turns rather than blanking it —
+  // only truly blank before this game session's first-ever roll
+  setDiceFace(G.dice);
   const die = document.getElementById('dieEl');
   const btn = document.getElementById('btnRoll');
   const myTurn = isMySeatTurn() && G.winnerSeat===null && !paused;
-  const canRoll = myTurn && !G.diceRolled && !G.awaitingChoice;
+  const canRoll = myTurn && !G.diceRolled && !G.awaitingChoice && !G.animating;
   die.classList.toggle('disabled', !canRoll);
   btn.disabled = !canRoll;
 }
@@ -1217,6 +1270,89 @@ window.addEventListener('resize', computeLayout);
 window.addEventListener('orientationchange', ()=>setTimeout(computeLayout,200));
 
 function cellXY(row,col){ return { x: col*cellPx + cellPx/2, y: row*cellPx + cellPx/2 }; }
+function pixelForYard(ci, tokenIdx){
+  const b = YARD_BOUNDS[ci];
+  const cx = (b.c0+b.c1)/2, cy = (b.r0+b.r1)/2;
+  const off = YARD_SLOT_OFFSET[tokenIdx];
+  return cellXY(cy+off[0], cx+off[1]);
+}
+function pixelForDistance(ci, d){
+  const cell = cellForToken(ci, d);
+  return cellXY(cell[0], cell[1]);
+}
+
+/* ============================= PIECE MOVEMENT ANIMATION ============================= */
+// tokenAnimOverrides holds {ci_tokenIdx: {x,y}} for any token currently mid-hop —
+// renderBoard() draws these separately, on top, instead of at their resting cell.
+let tokenAnimOverrides = {};
+
+function animateBoardTransition(oldTokens, newTokens, onDone){
+  const anims = [];
+  let sawCapture = false, sawFinish = false;
+
+  Object.keys(newTokens).forEach(ciStr=>{
+    const ci = +ciStr;
+    const oldArr = oldTokens[ci] || [0,0,0,0];
+    const newArr = newTokens[ci];
+    for(let i=0;i<4;i++){
+      const od = oldArr[i], nd = newArr[i];
+      if(od === nd) continue;
+      if(nd === 0 && od !== 0){
+        // sent back to the yard
+        const from = pixelForDistance(ci, od);
+        const to = pixelForYard(ci, i);
+        anims.push({ ci, tokenIdx:i, waypoints:[from,to], duration:380, isCapture:true });
+        sawCapture = true;
+      } else if(nd > od){
+        // forward move: hop through every intermediate cell so it never cuts across the board
+        const waypoints = [];
+        waypoints.push(od===0 ? pixelForYard(ci,i) : pixelForDistance(ci,od));
+        const loopStart = od===0 ? 1 : od+1;
+        for(let d=loopStart; d<=nd; d++) waypoints.push(pixelForDistance(ci,d));
+        const steps = Math.max(1, waypoints.length-1);
+        const finishesHome = nd===57;
+        anims.push({ ci, tokenIdx:i, waypoints, duration:Math.max(220, steps*115), isFinish:finishesHome, lastSeg:-1 });
+        if(finishesHome) sawFinish = true;
+      }
+    }
+  });
+
+  if(anims.length===0){ onDone(); return; }
+  if(sawCapture){ showToast('Captured!'); anims.filter(a=>a.isCapture).forEach(()=> Audio_.sfx.capture()); }
+  if(sawFinish) showToast('Home!');
+
+  const start = performance.now();
+  anims.forEach(a=>{ a.startTime = start; a.done = false; });
+
+  function frame(now){
+    let allDone = true;
+    anims.forEach(a=>{
+      if(a.done) return;
+      const t = Math.min(1, (now-a.startTime)/a.duration);
+      const segCount = a.waypoints.length-1;
+      const segFloat = t*segCount;
+      const segIndex = Math.min(segCount-1, Math.floor(segFloat));
+      const segT = segCount>0 ? segFloat-segIndex : 1;
+      const p0 = a.waypoints[segIndex], p1 = a.waypoints[Math.min(segCount, segIndex+1)];
+      const x = p0.x + (p1.x-p0.x)*segT;
+      const y = p0.y + (p1.y-p0.y)*segT;
+      const hopArc = a.isCapture ? 0 : Math.sin(segT*Math.PI) * cellPx*0.14;
+      tokenAnimOverrides[a.ci+'_'+a.tokenIdx] = { x, y: y - hopArc };
+      if(segIndex !== a.lastSeg){ a.lastSeg = segIndex; if(!a.isCapture) Audio_.sfx.diceTick(); }
+      if(t>=1){
+        a.done = true;
+        if(a.isFinish) Audio_.sfx.enterHome();
+        delete tokenAnimOverrides[a.ci+'_'+a.tokenIdx];
+      } else {
+        allDone = false;
+      }
+    });
+    renderBoard();
+    if(!allDone) requestAnimationFrame(frame);
+    else onDone();
+  }
+  requestAnimationFrame(frame);
+}
 
 function roundRect(ctx,x,y,w,h,r){
   ctx.beginPath();
@@ -1326,23 +1462,19 @@ function renderBoard(){
   Object.keys(G.tokens).forEach(ciStr=>{
     const ci = +ciStr;
     G.tokens[ci].forEach((d, tokenIdx)=>{
+      if(tokenAnimOverrides[ci+'_'+tokenIdx]) return; // drawn separately below, mid-animation
       if(d===57){
-        const cell = HOME_COLUMNS[ci][5];
-        const {x,y} = cellXY(cell[0],cell[1]);
+        const {x,y} = pixelForDistance(ci,57);
         pushGroup('home_'+ci, ci, tokenIdx, x, y);
         return;
       }
       if(d===0){
-        const b = YARD_BOUNDS[ci];
-        const cx = (b.c0+b.c1)/2, cy=(b.r0+b.r1)/2;
-        const off = YARD_SLOT_OFFSET[tokenIdx];
-        const {x,y} = cellXY(cy+off[0], cx+off[1]);
+        const {x,y} = pixelForYard(ci, tokenIdx);
         pushGroup('yard_'+ci+'_'+tokenIdx, ci, tokenIdx, x, y);
         return;
       }
-      const cell = cellForToken(ci, d);
-      const {x,y} = cellXY(cell[0],cell[1]);
-      pushGroup(cell[0]+'_'+cell[1], ci, tokenIdx, x, y);
+      const {x,y} = pixelForDistance(ci,d);
+      pushGroup(x+'_'+y, ci, tokenIdx, x, y);
     });
   });
 
@@ -1365,6 +1497,14 @@ function renderBoard(){
       drawToken(tx, ty, r, COLORS[it.ci].hex, isMovable);
       it._tx = tx; it._ty = ty; it._r = r;
     });
+  });
+
+  // tokens currently mid-animation render on top, at their tweened position
+  Object.keys(tokenAnimOverrides).forEach(key=>{
+    const parts = key.split('_');
+    const ci = +parts[0], tokenIdx = +parts[1];
+    const pos = tokenAnimOverrides[key];
+    drawToken(pos.x, pos.y, cellPx*0.30, COLORS[ci].hex, false);
   });
 
   // stash groups for click hit-testing
@@ -1454,7 +1594,7 @@ function hexToRgba(hex, alpha){
 
 /* ============================= BOARD INPUT ============================= */
 function handleBoardClick(clientX, clientY){
-  if(!G || paused || G.winnerSeat!==null) return;
+  if(!G || paused || G.winnerSeat!==null || G.animating) return;
   if(!G.awaitingChoice) return;
   if(!isMySeatTurn()) return;
   const rect = boardCanvas.getBoundingClientRect();
@@ -1700,18 +1840,35 @@ function peerAvailable(){ return typeof Peer !== 'undefined'; }
 // STUN alone only helps two peers discover their public address — it can't
 // get through every NAT/firewall combination, especially across two
 // different networks (home + mobile, two different offices, etc). TURN is
-// a relay of last resort for exactly those cases. openrelay.metered.ca is a
-// commonly used free public TURN relay for small WebRTC projects like this
-// one — no signup needed, but as a shared free resource it can occasionally
-// be slow or rate-limited under heavy load.
+// a relay of last resort for exactly those cases. These are two different
+// free public TURN providers (no signup needed) so if one is ever down or
+// rate-limited, the other can still get a connection through.
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'turn:openrelay.metered.ca:80', username:'openrelayproject', credential:'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443', username:'openrelayproject', credential:'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username:'openrelayproject', credential:'openrelayproject' }
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username:'openrelayproject', credential:'openrelayproject' },
+  { urls: 'turn:relay1.expressturn.com:3478', username:'efQXV5723LTZWL2748', credential:'wF4X0xtZjBSl0MEU' }
 ];
-const PEER_OPTS = { config: { iceServers: ICE_SERVERS } };
+const PEER_OPTS = { debug: 2, config: { iceServers: ICE_SERVERS } };
+
+// Surfaces what's actually happening during a join attempt — WebRTC failures
+// are usually silent (no thrown error, it just never connects), so without
+// this the browser console genuinely has nothing to show. Look for these
+// [Ludo] lines if a join ever hangs again.
+function logConn(label, conn){
+  console.log('[Ludo] '+label);
+  const watch = ()=>{
+    const pc = conn.peerConnection;
+    if(!pc){ setTimeout(watch, 200); return; }
+    console.log('[Ludo] ICE state:', pc.iceConnectionState, '| gathering:', pc.iceGatheringState);
+    pc.addEventListener('iceconnectionstatechange', ()=> console.log('[Ludo] ICE state →', pc.iceConnectionState));
+    pc.addEventListener('icegatheringstatechange', ()=> console.log('[Ludo] ICE gathering →', pc.iceGatheringState));
+    pc.addEventListener('icecandidateerror', e=> console.warn('[Ludo] ICE candidate error:', e.errorText || e));
+  };
+  watch();
+}
 
 function resetPeerState(){
   hostConns.forEach(c=>{ try{ c.conn.close(); }catch(e){} });
@@ -1773,9 +1930,12 @@ function tryOpenHostPeer(name, btn, attempt){
 document.getElementById('btnCreateRoom').addEventListener('click', ()=>{ Audio_.init(); createRoom(); });
 
 function setupHostConnection(conn){
+  console.log('[Ludo] incoming connection from', conn.peer);
+  logConn('host: guest connecting…', conn);
+  conn.on('open', ()=> console.log('[Ludo] guest connection open:', conn.peer));
   conn.on('data', data=> handleHostMessage(conn, data));
   conn.on('close', ()=> handleGuestLeft(conn));
-  conn.on('error', ()=> handleGuestLeft(conn));
+  conn.on('error', err=>{ console.warn('[Ludo] guest connection error:', err); handleGuestLeft(conn); });
 }
 
 function handleHostMessage(conn, msg){
@@ -1914,19 +2074,23 @@ async function joinRoomFlow(){
   }
 
   const peer = new Peer(undefined, PEER_OPTS);
-  peer.on('open', ()=>{
+  peer.on('open', id=>{
+    console.log('[Ludo] guest peer open, my id:', id, '— connecting to', ROOM_ID_PREFIX+code);
     myPeer = peer;
     const conn = peer.connect(ROOM_ID_PREFIX + code, { reliable:true });
     guestConnToHost = conn;
+    logConn('guest: dialing host…', conn);
 
     // Discovering the host is usually instant; actually establishing the
     // WebRTC connection can take longer on tricky networks (that's what the
     // TURN relay above is for), so this timeout is generous on purpose.
     joinTimeoutHandle = setTimeout(()=>{
+      console.warn('[Ludo] join timed out waiting for connection to open. If the console above never showed "ICE state → connected", the two networks likely couldn\'t reach each other even via TURN.');
       fail("Couldn't reach that room — check the code, or the host's connection may be blocking direct play.");
     }, 15000);
 
     conn.on('open', ()=>{
+      console.log('[Ludo] connection to host open');
       if(settled) return;
       settled = true;
       clearTimeout(joinTimeoutHandle); joinTimeoutHandle = null;
@@ -1940,9 +2104,10 @@ async function joinRoomFlow(){
       lobbyCode = code;
       enterLobbyUI(code, false);
     });
-    conn.on('error', ()=> fail('Could not connect to that room — please try again.'));
+    conn.on('error', err=>{ console.warn('[Ludo] connection error:', err); fail('Could not connect to that room — please try again.'); });
   });
   peer.on('error', err=>{
+    console.warn('[Ludo] peer error:', err && err.type, err);
     if(err && err.type === 'peer-unavailable'){
       fail('No room found with that code.');
     } else if(err && err.type === 'network'){
@@ -2063,6 +2228,7 @@ function buildOnlineGameState(seats, tokens, localUid, isHost){
     awaitingChoice: false,
     validTokens: [],
     winnerSeat: null,
+    animating: false,
     online: { roomCode: lobbyCode, isHost, localUid }
   };
   paused = false;
@@ -2080,6 +2246,7 @@ function buildOnlineGameState(seats, tokens, localUid, isHost){
 function applyRemoteState(d){
   if(!G) return;
   const wasWinner = G.winnerSeat;
+  const oldTokens = JSON.parse(JSON.stringify(G.tokens));
   G.seats = d.seats;
   G.tokens = d.tokens;
   G.turnSeat = d.turnSeat;
@@ -2090,10 +2257,15 @@ function applyRemoteState(d){
   G.validTokens = d.validTokens||[];
   G.winnerSeat = d.winnerSeat;
   buildPlayerList();
-  renderBoard(); renderDice(); updateTurnCaption();
-  if(G.winnerSeat!==null && wasWinner===null){
-    endGame(G.winnerSeat);
-  }
+  renderDice(); updateTurnCaption();
+  G.animating = true;
+  animateBoardTransition(oldTokens, G.tokens, ()=>{
+    G.animating = false;
+    renderBoard(); renderDice();
+    if(G.winnerSeat!==null && wasWinner===null){
+      endGame(G.winnerSeat);
+    }
+  });
 }
 
 /* ============================= BACKGROUND LOOP ============================= */
