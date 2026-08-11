@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Ludo - a quiet game of four paths home</title>
+<title>Aurora Ludo — a quiet game of four paths home</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2518,4 +2518,55 @@ function buildOnlineGameState(seats, tokens, localUid, isHost){
     online: { roomCode: lobbyCode, isHost, localUid }
   };
   paused = false;
-  document.getElementById('menuRoot').
+  document.getElementById('menuRoot').style.display = 'none';
+  document.getElementById('gameArea').style.display = 'flex';
+  document.getElementById('btnPause').style.display = 'none';
+  document.getElementById('overlayGameOver').classList.remove('visible');
+  buildPlayerList();
+  computeLayout();
+  Audio_.init();
+  snapDieInstant(G.dice||1);
+  updateTurnCaption(); renderDice(); renderBoard();
+  if(isHost) maybeAutoCPU();
+}
+
+function applyRemoteState(d){
+  if(!G) return;
+  const wasWinner = G.winnerSeat;
+  const wasSpinning = !!guestSpinTimer;
+  const oldTokens = JSON.parse(JSON.stringify(G.tokens));
+  G.seats = d.seats;
+  G.tokens = d.tokens;
+  G.turnSeat = d.turnSeat;
+  G.dice = d.dice;
+  G.diceRolled = d.diceRolled;
+  G.sixStreak = d.sixStreak;
+  G.awaitingChoice = d.awaitingChoice;
+  G.validTokens = d.validTokens||[];
+  G.winnerSeat = d.winnerSeat;
+  if(wasSpinning) spinDieTo(G.dice||1, 1, null);
+  buildPlayerList();
+  renderDice(); updateTurnCaption();
+  G.animating = true;
+  animateBoardTransition(oldTokens, G.tokens, ()=>{
+    G.animating = false;
+    renderBoard(); renderDice();
+    if(G.winnerSeat!==null && wasWinner===null){
+      endGame(G.winnerSeat);
+    }
+  });
+}
+
+/* ============================= BACKGROUND LOOP ============================= */
+let lastBgTime = 0;
+requestAnimationFrame(function loop(t){
+  const dt = Math.min(50, t-lastBgTime); lastBgTime = t;
+  drawBg(dt/1000);
+  if(G && document.getElementById('gameArea').style.display!=='none') renderBoard();
+  requestAnimationFrame(loop);
+});
+
+})();
+</script>
+</body>
+</html>
