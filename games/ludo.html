@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Ludo — a quiet game of four paths home</title>
+<title>Aurora Ludo - a quiet game of four paths home</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -102,7 +102,7 @@
   .player-crown{font-size:12px;}
 
   .dice-wrap{ display:flex;flex-direction:column;align-items:center;gap:10px; }
-  .die-stage{ perspective:340px; }
+  .die-stage{ }
   .die{
     width:56px;height:56px;border-radius:15px;
     background:
@@ -111,25 +111,20 @@
     display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
     padding:9px;
     box-shadow:
-      0 16px 28px -10px rgba(0,0,0,0.6),
+      0 14px 24px -9px rgba(0,0,0,0.6),
       0 3px 0 rgba(255,255,255,0.55) inset,
       0 -8px 14px -4px rgba(60,50,30,0.35) inset,
       0 0 0 1px rgba(60,50,30,0.18);
     cursor:pointer;
-    transition:transform .12s ease;
-    transform-style:preserve-3d;
-    will-change:transform;
   }
-  .die:active{transform:scale(0.94);}
   .die.disabled{opacity:0.45;cursor:default;}
-  .die.rolling{ animation:diceTumble3d .62s cubic-bezier(.25,.6,.35,1); }
-  @keyframes diceTumble3d{
-    0%{ transform:rotateX(0) rotateY(0) rotateZ(0) scale(1); }
-    22%{ transform:rotateX(140deg) rotateY(70deg) rotateZ(12deg) scale(1.06); }
-    46%{ transform:rotateX(250deg) rotateY(200deg) rotateZ(-14deg) scale(1.1); }
-    70%{ transform:rotateX(330deg) rotateY(310deg) rotateZ(8deg) scale(1.04); }
-    88%{ transform:rotateX(370deg) rotateY(370deg) rotateZ(-3deg) scale(1.01); }
-    100%{ transform:rotateX(360deg) rotateY(360deg) rotateZ(0) scale(1); }
+  .die.rolling{ animation:diceShake .32s ease-in-out infinite; }
+  @keyframes diceShake{
+    0%{ transform:rotate(0deg) scale(1); }
+    25%{ transform:rotate(-9deg) scale(1.05); }
+    50%{ transform:rotate(0deg) scale(0.98); }
+    75%{ transform:rotate(9deg) scale(1.05); }
+    100%{ transform:rotate(0deg) scale(1); }
   }
   .pip{
     border-radius:50%;
@@ -358,6 +353,15 @@
         <p>Breathe. The board will wait.</p>
         <button class="btn" id="btnResume">Resume</button>
         <button class="btn ghost small" id="btnQuitToMenu">Leave game</button>
+      </div>
+
+      <div class="game-overlay" id="overlayReconnect">
+        <h2>Reconnecting…</h2>
+        <p id="reconnectText">Lost the connection to the host. Trying again.</p>
+        <div class="btn-row">
+          <button class="btn" id="btnReconnectNow" style="display:none;">Try again</button>
+          <button class="btn ghost small" id="btnGiveUpReconnect">Leave game</button>
+        </div>
       </div>
 
       <div class="game-overlay" id="overlayGameOver">
@@ -699,32 +703,32 @@ const Audio_ = (function(){
       // settling into a soft low thud as they come to rest
       for(let i=0;i<6;i++){
         const tt = t + i*0.065 + Math.random()*0.02;
-        noiseBurst(tt, 0.045, 850+Math.random()*700, 0.05);
-        tone(tt, 500+Math.random()*300, 0.03, 'triangle', 0.02);
+        noiseBurst(tt, 0.05, 850+Math.random()*700, 0.16);
+        tone(tt, 500+Math.random()*300, 0.035, 'triangle', 0.07);
       }
-      tone(t+0.46, 150, 0.14, 'triangle', 0.045, 90);
+      tone(t+0.46, 150, 0.16, 'triangle', 0.15, 90);
     },
-    diceTick(){ if(!sfxOn||!ctx) return; noiseBurst(ctx.currentTime, 0.03, 1000+Math.random()*500, 0.03); },
-    move(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 380, 0.05, 'sine', 0.035); },
+    diceTick(){ if(!sfxOn||!ctx) return; noiseBurst(ctx.currentTime, 0.035, 1000+Math.random()*500, 0.1); },
+    move(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 380, 0.06, 'sine', 0.12); },
     capture(){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      tone(t, 420, 0.22, 'sine', 0.06, 160);
-      tone(t+0.05, 300, 0.2, 'sine', 0.04, 120);
+      tone(t, 420, 0.24, 'sine', 0.2, 160);
+      tone(t+0.05, 300, 0.22, 'sine', 0.14, 120);
     },
     enterHome(){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      [523.25,659.25,783.99].forEach((f,i)=> playBellPublic(f, t+i*0.08, 0.08));
+      [523.25,659.25,783.99].forEach((f,i)=> playBellPublic(f, t+i*0.08, 0.26));
     },
     win(){
       if(!sfxOn||!ctx) return;
       const t = ctx.currentTime;
-      [523.25,659.25,783.99,1046.5].forEach((f,i)=> tone(t+i*0.1, f, 0.4, 'sine', 0.08));
+      [523.25,659.25,783.99,1046.5].forEach((f,i)=> tone(t+i*0.1, f, 0.42, 'sine', 0.26));
     },
-    noMoves(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 200, 0.09, 'sine', 0.03); },
-    ui(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 600, 0.05, 'sine', 0.04); },
-    pause(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 300, 0.09, 'triangle', 0.05, 220); }
+    noMoves(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 200, 0.1, 'sine', 0.1); },
+    ui(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 600, 0.06, 'sine', 0.12); },
+    pause(){ if(!sfxOn||!ctx) return; tone(ctx.currentTime, 300, 0.1, 'triangle', 0.15, 220); }
   };
 
   return {
@@ -917,6 +921,7 @@ function startGame(mode, seats, presetTokens, presetTurn){
   buildPlayerList();
   computeLayout();
   Audio_.init();
+  snapDieInstant(G.dice||1);
   updateTurnCaption();
   renderDice();
   renderBoard();
@@ -1000,20 +1005,9 @@ function beginRoll(){
 
 function doRoll(){
   Audio_.sfx.diceRoll();
-  const die = document.getElementById('dieEl');
-  die.classList.add('rolling');
-  let ticks = 0;
-  const shuffle = setInterval(()=>{
-    setDiceFace(1+Math.floor(Math.random()*6));
-    ticks++;
-    if(ticks>10){
-      clearInterval(shuffle);
-      die.classList.remove('rolling');
-      const r = rollValue();
-      setDiceFace(r);
-      onRolled(r);
-    }
-  }, 58);
+  if(G.mode==='online' && G.online.isHost) broadcastToAll({ type:'rolling' });
+  const r = rollValue();
+  spinDieTo(r, 2+Math.floor(Math.random()*2), ()=> onRolled(r));
 }
 
 function onRolled(r){
@@ -1197,20 +1191,66 @@ function updatePlayerListMeta(){
   });
 }
 
+/* ============================= 2D DIE (flat, pip-toggling) =============================
+   A simple flat die: one element, nine pip slots, the right ones lit up per
+   value. "Rolling" just cycles random faces with a little shake while the
+   true value is worked out, then settles. Every client — host, guest, or a
+   CPU turn watched by everyone else — runs the same visual locally: the
+   host knows the value immediately and shakes for a fixed short burst, a
+   guest doesn't know it yet so it shakes indefinitely until told, then
+   settles the moment the real value arrives. */
 const DICE_PATTERNS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+let guestSpinTimer = null;
+
 function setDiceFace(v){
   const pips = document.querySelectorAll('#dieEl .pip');
-  const on = new Set(DICE_PATTERNS[v]||[]);
+  const on = new Set(DICE_PATTERNS[v] || []);
   pips.forEach(p=>{
     const i = +p.dataset.i;
     p.classList.toggle('on', on.has(i));
   });
 }
+
+function snapDieInstant(v){
+  stopGuestSpin();
+  document.getElementById('dieEl').classList.remove('rolling');
+  setDiceFace(v || 1);
+}
+
+// Host path: the true value is already known — shake for a fixed short
+// burst cycling random faces, then settle on the real one.
+function spinDieTo(v, extraTurns, onDone){
+  stopGuestSpin();
+  const die = document.getElementById('dieEl');
+  die.classList.add('rolling');
+  let ticks = 0;
+  const shuffle = setInterval(()=>{
+    setDiceFace(1+Math.floor(Math.random()*6));
+    ticks++;
+    if(ticks > 9){
+      clearInterval(shuffle);
+      die.classList.remove('rolling');
+      setDiceFace(v);
+      if(onDone) onDone();
+    }
+  }, 65);
+}
+
+// Guest path: we don't know the result yet (host is authoritative), so keep
+// shaking with random faces indefinitely until the real value arrives.
+function startGuestSpin(){
+  stopGuestSpin();
+  const die = document.getElementById('dieEl');
+  die.classList.add('rolling');
+  guestSpinTimer = setInterval(()=> setDiceFace(1+Math.floor(Math.random()*6)), 90);
+}
+function stopGuestSpin(){
+  if(guestSpinTimer){ clearInterval(guestSpinTimer); guestSpinTimer = null; }
+  document.getElementById('dieEl').classList.remove('rolling');
+}
+
 function renderDice(){
   if(!G) return;
-  // keep showing the last-rolled face between turns rather than blanking it —
-  // only truly blank before this game session's first-ever roll
-  setDiceFace(G.dice);
   const die = document.getElementById('dieEl');
   const btn = document.getElementById('btnRoll');
   const myTurn = isMySeatTurn() && G.winnerSeat===null && !paused;
@@ -1742,6 +1782,14 @@ function loadAudioPrefs(){
   if(sVol!==null){ Audio_.setSfxVol(parseFloat(sVol)); document.getElementById('sfxVol').value = Math.round(parseFloat(sVol)*100); document.getElementById('sfxVolLabel').textContent = Math.round(parseFloat(sVol)*100)+'%'; }
 }
 loadAudioPrefs();
+(function prefillSavedName(){
+  const saved = getSavedName();
+  if(!saved) return;
+  ['soloNameInput','hostNameInput','joinNameInput'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.value = saved;
+  });
+})();
 
 /* ============================= MENU NAVIGATION ============================= */
 function showScreen(id){
@@ -1779,6 +1827,7 @@ document.getElementById('btnBeginSolo').addEventListener('click', ()=>{
   const n = selectedCount;
   const colors = pickSeatColors(n);
   const myName = document.getElementById('soloNameInput').value.trim() || 'Player';
+  savePlayerName(myName);
   const seats = colors.map((ci,i)=>{
     if(selectedMode==='cpu'){
       return { colorIndex:ci, name: i===0 ? myName : ('CPU '+COLORS[ci].name), isCPU: i!==0 };
@@ -1817,6 +1866,19 @@ document.getElementById('hostCountRow').addEventListener('click', e=>{
                       {type:'closed'}
    ============================================================ */
 const ROOM_ID_PREFIX = 'auroraludo-';
+
+// A persistent identity for this browser — separate from the transient
+// PeerJS connection id, which changes every time you reconnect. The host
+// uses this token (not the live connection) to recognize "this is the same
+// player coming back" and hand their seat back to them instead of treating
+// them as a stranger.
+function getPlayerToken(){
+  let t = localStorage.getItem('ludo_player_token');
+  if(!t){ t = 'tok_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); localStorage.setItem('ludo_player_token', t); }
+  return t;
+}
+function getSavedName(){ return localStorage.getItem('ludo_player_name') || ''; }
+function savePlayerName(name){ if(name) localStorage.setItem('ludo_player_name', name.slice(0,16)); }
 
 function randomRoomCode(){
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1884,6 +1946,7 @@ function resetPeerState(){
 async function createRoom(){
   if(!peerAvailable()){ alert('Online play needs a network connection to load the multiplayer library — please check your connection and reload.'); return; }
   const name = document.getElementById('hostNameInput').value.trim() || 'Host';
+  savePlayerName(name);
   const btn = document.getElementById('btnCreateRoom');
   btn.disabled = true; btn.textContent = 'Creating…';
   resetPeerState();
@@ -1938,21 +2001,62 @@ function setupHostConnection(conn){
   conn.on('error', err=>{ console.warn('[Ludo] guest connection error:', err); handleGuestLeft(conn); });
 }
 
+function tokenForConn(conn){
+  const entry = hostConns.find(c=>c.conn===conn);
+  return entry ? entry.uid : null;
+}
+
 function handleHostMessage(conn, msg){
   if(!msg || !msg.kind) return;
   if(msg.kind === 'hello'){
-    if(G && G.mode==='online'){ return; } // game already running, ignore late joins
-    if(lobbyPlayers.length >= lobbyMaxPlayers){ conn.send({type:'full'}); return; }
+    const token = msg.token || conn.peer; // fall back gracefully if an old client ever connects without one
     const name = (msg.name||'Player').slice(0,16);
-    hostConns.push({ uid: conn.peer, conn, name, isCPU:false });
-    lobbyPlayers.push({ uid: conn.peer, name, isCPU:false });
+
+    if(G && G.mode==='online'){
+      // Game already running — only let this through if it's a genuine
+      // reconnect (same persistent token as an existing seat), not a
+      // stranger trying to join mid-game.
+      const seat = G.seats.find(s=>s.uid===token);
+      if(!seat){ conn.send({ type:'unknown_room' }); return; }
+      const existing = hostConns.find(c=>c.uid===token);
+      if(existing) existing.conn = conn; else hostConns.push({ uid:token, conn, name, isCPU:false });
+      const wasCPU = seat.isCPU;
+      seat.isCPU = false;
+      seat.name = name;
+      conn.send({
+        type:'resume', seats:G.seats, tokens:G.tokens, turnSeat:G.turnSeat, dice:G.dice,
+        diceRolled:G.diceRolled, sixStreak:G.sixStreak, awaitingChoice:G.awaitingChoice,
+        validTokens:G.validTokens, winnerSeat:G.winnerSeat
+      });
+      if(wasCPU) showToast(name + ' reconnected');
+      buildPlayerList();
+      broadcastState();
+      maybeAutoCPU();
+      return;
+    }
+
+    // Still in the lobby — a matching token here means they refreshed or
+    // dropped before the game started; just re-point their connection
+    // instead of adding a duplicate seat.
+    const existingIdx = lobbyPlayers.findIndex(p=>p.uid===token);
+    if(existingIdx >= 0){
+      lobbyPlayers[existingIdx].name = name;
+      const hc = hostConns.find(c=>c.uid===token);
+      if(hc) hc.conn = conn; else hostConns.push({ uid:token, conn, name, isCPU:false });
+      renderLobby();
+      broadcastLobby();
+      return;
+    }
+    if(lobbyPlayers.length >= lobbyMaxPlayers){ conn.send({type:'full'}); return; }
+    hostConns.push({ uid: token, conn, name, isCPU:false });
+    lobbyPlayers.push({ uid: token, name, isCPU:false });
     renderLobby();
     broadcastLobby();
     return;
   }
   if(!G || G.mode !== 'online') return;
   const seat = G.seats[G.turnSeat];
-  if(!seat || seat.uid !== conn.peer) return; // not this player's turn — ignore
+  if(!seat || seat.uid !== tokenForConn(conn)) return; // not this player's turn — ignore
   if(msg.kind === 'roll'){
     if(G.diceRolled || G.awaitingChoice) return;
     doRoll();
@@ -1975,11 +2079,13 @@ function handleGuestLeft(conn){
     broadcastLobby();
     return;
   }
-  // mid-game: hand their seat to the CPU rather than stalling everyone else
+  // mid-game: hand their seat to the CPU rather than stalling everyone else.
+  // If they reconnect later, the 'hello' handler above hands it right back.
   const seat = G.seats.find(s=>s.uid===left.uid);
   if(seat){
     seat.isCPU = true;
     showToast(seat.name + ' disconnected — CPU continues for them');
+    buildPlayerList();
     broadcastState();
     maybeAutoCPU();
   }
@@ -2054,6 +2160,7 @@ async function joinRoomFlow(){
   if(!peerAvailable()){ alert('Online play needs a network connection to load the multiplayer library — please check your connection and reload.'); return; }
   const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
   const name = document.getElementById('joinNameInput').value.trim() || 'Player';
+  savePlayerName(name);
   const errEl = document.getElementById('joinError');
   errEl.style.display = 'none';
   if(code.length < 4){ errEl.textContent='Enter the room code.'; errEl.style.display='block'; return; }
@@ -2094,14 +2201,12 @@ async function joinRoomFlow(){
       if(settled) return;
       settled = true;
       clearTimeout(joinTimeoutHandle); joinTimeoutHandle = null;
-      conn.send({ kind:'hello', name });
+      conn.send({ kind:'hello', name, token:getPlayerToken() });
       conn.on('data', data=> handleGuestMessage(data));
-      conn.on('close', ()=>{
-        showToast('Lost connection to host');
-        setTimeout(backToMenu, 1200);
-      });
+      conn.on('close', ()=> handleLostHostConnection());
       btn.disabled = false; btn.textContent = 'Join room';
       lobbyCode = code;
+      localStorage.setItem('ludo_last_room', code);
       enterLobbyUI(code, false);
     });
     conn.on('error', err=>{ console.warn('[Ludo] connection error:', err); fail('Could not connect to that room — please try again.'); });
@@ -2119,6 +2224,137 @@ async function joinRoomFlow(){
 }
 document.getElementById('btnJoinRoom').addEventListener('click', ()=>{ Audio_.init(); joinRoomFlow(); });
 
+/* ---------------------------- GUEST RECONNECT ---------------------------- */
+// Fires whenever the live connection to the host drops — during an active
+// game (not just in the lobby). We keep retrying with the same persistent
+// token and name rather than dumping the person back to the main menu, so a
+// blip in their network doesn't cost them their seat.
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+let reconnecting = false;
+
+function showReconnectOverlay(show, text, giveUp){
+  const ov = document.getElementById('overlayReconnect');
+  ov.classList.toggle('visible', !!show);
+  if(text) document.getElementById('reconnectText').textContent = text;
+  document.getElementById('btnReconnectNow').style.display = giveUp ? 'inline-block' : 'none';
+}
+document.getElementById('btnReconnectNow').addEventListener('click', ()=>{ reconnectAttempts = 0; tryGuestReconnect(); });
+document.getElementById('btnGiveUpReconnect').addEventListener('click', ()=>{
+  showReconnectOverlay(false);
+  resetPeerState();
+  localStorage.removeItem('ludo_last_room');
+  backToMenu();
+});
+
+function handleLostHostConnection(){
+  if(reconnecting) return; // already mid-retry loop
+  if(!lobbyCode) return; // never joined a room — nothing to reconnect to
+  reconnecting = true;
+  reconnectAttempts = 0;
+  if(G && G.mode==='online') showReconnectOverlay(true, 'Lost the connection to the host. Reconnecting…');
+  else showToast('Lost connection to host — reconnecting…');
+  tryGuestReconnect();
+}
+
+function tryGuestReconnect(){
+  if(!lobbyCode){ reconnecting = false; return; }
+  reconnectAttempts++;
+  const inGame = G && G.mode==='online';
+  if(reconnectAttempts > MAX_RECONNECT_ATTEMPTS){
+    if(inGame) showReconnectOverlay(true, "Couldn't reach the host — they may have closed the room or lost their own connection.", true);
+    else showToast("Couldn't reach the host — the room may be gone");
+    reconnecting = false;
+    return;
+  }
+  if(inGame) showReconnectOverlay(true, 'Reconnecting… (attempt '+reconnectAttempts+' of '+MAX_RECONNECT_ATTEMPTS+')');
+  const code = lobbyCode;
+  const name = getSavedName() || 'Player';
+  let settled = false;
+  const peer = new Peer(undefined, PEER_OPTS);
+
+  const retryLater = ()=>{
+    if(settled) return; settled = true;
+    try{ peer.destroy(); }catch(e){}
+    setTimeout(tryGuestReconnect, 1500);
+  };
+
+  const failTimer = setTimeout(retryLater, 8000);
+
+  peer.on('open', ()=>{
+    const conn = peer.connect(ROOM_ID_PREFIX + code, { reliable:true });
+    conn.on('open', ()=>{
+      if(settled) return; settled = true; clearTimeout(failTimer);
+      myPeer = peer;
+      guestConnToHost = conn;
+      conn.send({ kind:'hello', name, token:getPlayerToken() });
+      conn.on('data', data=> handleGuestMessage(data));
+      conn.on('close', ()=> handleLostHostConnection());
+      // In-game reconnects get confirmed by the host's 'resume' message
+      // (which clears reconnecting/hides the overlay itself). A lobby-phase
+      // reconnect has no such confirmation step, so clear it here instead.
+      if(!inGame){ reconnecting = false; }
+    });
+    conn.on('error', ()=> retryLater());
+  });
+  peer.on('error', err=>{
+    if(settled) return;
+    if(err && err.type === 'peer-unavailable'){
+      settled = true; clearTimeout(failTimer);
+      if(inGame) showReconnectOverlay(true, "The room is gone — the host may have closed it.", true);
+      else showToast('That room no longer exists');
+      reconnecting = false;
+    } else {
+      retryLater();
+    }
+  });
+}
+
+/* ---------------------------- REJOIN FROM MAIN MENU ---------------------------- */
+// Covers the other half of "reconnecting": the tab itself was closed and
+// reopened, rather than just a network blip mid-game. Same token, same
+// saved name, same mechanism as the live-reconnect path above.
+(function offerMenuRejoin(){
+  const last = localStorage.getItem('ludo_last_room');
+  if(!last || !peerAvailable()) return;
+  document.getElementById('rejoinBox').style.display = 'block';
+  document.getElementById('rejoinText').textContent = 'You were in room ' + last + ' — rejoin as ' + (getSavedName()||'yourself') + '?';
+  document.getElementById('btnRejoin').addEventListener('click', ()=>{
+    const btn = document.getElementById('btnRejoin');
+    btn.disabled = true; btn.textContent = 'Rejoining…';
+    const name = getSavedName() || 'Player';
+    resetPeerState();
+    lobbyIsHost = false;
+    let settled = false;
+    const peer = new Peer(undefined, PEER_OPTS);
+    const fail = (msg)=>{
+      if(settled) return; settled = true;
+      btn.disabled = false; btn.textContent = 'Rejoin that room';
+      document.getElementById('rejoinText').textContent = msg;
+      resetPeerState();
+      localStorage.removeItem('ludo_last_room');
+    };
+    const failTimer = setTimeout(()=> fail("Couldn't reach that room anymore."), 10000);
+    peer.on('open', ()=>{
+      myPeer = peer;
+      const conn = peer.connect(ROOM_ID_PREFIX + last, { reliable:true });
+      conn.on('open', ()=>{
+        if(settled) return; settled = true; clearTimeout(failTimer);
+        guestConnToHost = conn;
+        conn.send({ kind:'hello', name, token:getPlayerToken() });
+        conn.on('data', data=> handleGuestMessage(data));
+        conn.on('close', ()=> handleLostHostConnection());
+        lobbyCode = last;
+      });
+      conn.on('error', ()=> fail("Couldn't reach that room anymore."));
+    });
+    peer.on('error', err=>{
+      if(err && err.type==='peer-unavailable') fail('That room no longer exists.');
+      else fail('Could not connect — please try again.');
+    });
+  });
+})();
+
 function handleGuestMessage(msg){
   if(!msg || !msg.type) return;
   if(msg.type === 'full'){
@@ -2135,11 +2371,30 @@ function handleGuestMessage(msg){
     return;
   }
   if(msg.type === 'start'){
+    reconnecting = false;
+    showReconnectOverlay(false);
     launchOnlineGameAsGuest(msg.seats, msg.tokens);
+    return;
+  }
+  if(msg.type === 'resume'){
+    reconnecting = false;
+    showReconnectOverlay(false);
+    resumeOnlineGameAsGuest(msg);
+    return;
+  }
+  if(msg.type === 'unknown_room'){
+    reconnecting = false;
+    showReconnectOverlay(true, "This room no longer recognizes this device — it may have restarted without you.", true);
+    localStorage.removeItem('ludo_last_room');
     return;
   }
   if(msg.type === 'state'){
     applyRemoteState(msg);
+    return;
+  }
+  if(msg.type === 'rolling'){
+    Audio_.sfx.diceRoll();
+    startGuestSpin();
     return;
   }
   if(msg.type === 'toast'){
@@ -2205,7 +2460,11 @@ document.getElementById('lobbyLeaveLink').addEventListener('click', ()=> leaveOn
 
 function leaveOnlineRoom(){
   if(lobbyIsHost) broadcastToAll({ type:'closed' });
+  reconnecting = false;
+  showReconnectOverlay(false);
   resetPeerState();
+  localStorage.removeItem('ludo_last_room');
+  document.getElementById('rejoinBox').style.display = 'none';
   showScreen('screenMode');
 }
 
@@ -2213,7 +2472,34 @@ function launchOnlineGameAsHost(seats, tokens){
   buildOnlineGameState(seats, tokens, 'HOST', true);
 }
 function launchOnlineGameAsGuest(seats, tokens){
-  buildOnlineGameState(seats, tokens, myPeer.id, false);
+  buildOnlineGameState(seats, tokens, getPlayerToken(), false);
+}
+
+function resumeOnlineGameAsGuest(d){
+  G = {
+    mode:'online',
+    seats: d.seats,
+    tokens: d.tokens,
+    turnSeat: d.turnSeat,
+    dice: d.dice,
+    diceRolled: d.diceRolled,
+    sixStreak: d.sixStreak,
+    awaitingChoice: d.awaitingChoice,
+    validTokens: d.validTokens||[],
+    winnerSeat: d.winnerSeat,
+    animating: false,
+    online: { roomCode: lobbyCode, isHost:false, localUid: getPlayerToken() }
+  };
+  paused = false;
+  document.getElementById('menuRoot').style.display = 'none';
+  document.getElementById('gameArea').style.display = 'flex';
+  document.getElementById('btnPause').style.display = 'none';
+  document.getElementById('overlayGameOver').classList.remove('visible');
+  buildPlayerList();
+  computeLayout();
+  Audio_.init();
+  snapDieInstant(G.dice||1);
+  updateTurnCaption(); renderDice(); renderBoard();
 }
 
 function buildOnlineGameState(seats, tokens, localUid, isHost){
@@ -2232,52 +2518,4 @@ function buildOnlineGameState(seats, tokens, localUid, isHost){
     online: { roomCode: lobbyCode, isHost, localUid }
   };
   paused = false;
-  document.getElementById('menuRoot').style.display = 'none';
-  document.getElementById('gameArea').style.display = 'flex';
-  document.getElementById('btnPause').style.display = 'none';
-  document.getElementById('overlayGameOver').classList.remove('visible');
-  buildPlayerList();
-  computeLayout();
-  Audio_.init();
-  updateTurnCaption(); renderDice(); renderBoard();
-  if(isHost) maybeAutoCPU();
-}
-
-function applyRemoteState(d){
-  if(!G) return;
-  const wasWinner = G.winnerSeat;
-  const oldTokens = JSON.parse(JSON.stringify(G.tokens));
-  G.seats = d.seats;
-  G.tokens = d.tokens;
-  G.turnSeat = d.turnSeat;
-  G.dice = d.dice;
-  G.diceRolled = d.diceRolled;
-  G.sixStreak = d.sixStreak;
-  G.awaitingChoice = d.awaitingChoice;
-  G.validTokens = d.validTokens||[];
-  G.winnerSeat = d.winnerSeat;
-  buildPlayerList();
-  renderDice(); updateTurnCaption();
-  G.animating = true;
-  animateBoardTransition(oldTokens, G.tokens, ()=>{
-    G.animating = false;
-    renderBoard(); renderDice();
-    if(G.winnerSeat!==null && wasWinner===null){
-      endGame(G.winnerSeat);
-    }
-  });
-}
-
-/* ============================= BACKGROUND LOOP ============================= */
-let lastBgTime = 0;
-requestAnimationFrame(function loop(t){
-  const dt = Math.min(50, t-lastBgTime); lastBgTime = t;
-  drawBg(dt/1000);
-  if(G && document.getElementById('gameArea').style.display!=='none') renderBoard();
-  requestAnimationFrame(loop);
-});
-
-})();
-</script>
-</body>
-</html>
+  document.getElementById('menuRoot').
