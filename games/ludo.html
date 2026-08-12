@@ -397,7 +397,7 @@
   <div id="menuRoot">
 
     <div class="menu-screen visible" id="screenMode">
-      <div class="menu-eyebrow"> </div>
+      <div class="menu-eyebrow">Aurora Ludo</div>
       <h1 class="menu-title">How would you like to play?</h1>
       <p class="menu-sub">Four quiet paths, one board. Choose a way in.</p>
       <div class="mode-grid">
@@ -1084,7 +1084,7 @@ function chooseMove(tokenIdx){
   G.animating = true;
   renderDice(); updateTurnCaption();
 
-  animateBoardTransition(oldTokens, G.tokens, ()=>{
+  animateBoardTransition(oldTokens, G.tokens, withAnimationWatchdog(()=>{
     G.animating = false;
     const winSeat = checkWinner();
     if(winSeat !== null){
@@ -1097,7 +1097,7 @@ function chooseMove(tokenIdx){
     syncOnlineState();
     renderBoard(); renderDice(); updateTurnCaption();
     setTimeout(()=> resolveTurnEnd(r, true, captured, finished), 200);
-  });
+  }));
 }
 
 function resolveTurnEnd(r, moveHappened, captured, finished){
@@ -1326,6 +1326,33 @@ function pixelForDistance(ci, d){
 // renderBoard() draws these separately, on top, instead of at their resting cell.
 let tokenAnimOverrides = {};
 
+// Wraps a "the animation finished" callback so it can only ever run once,
+// whichever fires first: the real animation completing, or a timeout
+// forcing recovery if something ever goes wrong and it never would have.
+// This is the actual fix for a stuck "your turn — moving…" state — even a
+// bug I haven't anticipated can't leave the game frozen forever.
+function withAnimationWatchdog(fn){
+  let fired = false;
+  const watchdogId = setTimeout(()=>{
+    if(fired) return;
+    console.warn('[Ludo] animation watchdog: recovering after a stuck animation');
+    Object.keys(tokenAnimOverrides).forEach(k=> delete tokenAnimOverrides[k]);
+    if(G){
+      G.animating = false;
+      try{ renderBoard(); }catch(e){}
+    }
+    wrapped();
+  }, 4000);
+  function wrapped(...args){
+    if(fired) return;
+    fired = true;
+    clearTimeout(watchdogId);
+    if(!G) return; // player already left the game — nothing left to finish
+    fn(...args);
+  }
+  return wrapped;
+}
+
 function animateBoardTransition(oldTokens, newTokens, onDone){
   const anims = [];
   let sawCapture = false, sawFinish = false;
@@ -1365,33 +1392,53 @@ function animateBoardTransition(oldTokens, newTokens, onDone){
   anims.forEach(a=>{ a.startTime = start; a.done = false; });
 
   function frame(now){
-    let allDone = true;
-    anims.forEach(a=>{
-      if(a.done) return;
-      const t = Math.min(1, (now-a.startTime)/a.duration);
-      const segCount = a.waypoints.length-1;
-      const segFloat = t*segCount;
-      const segIndex = Math.min(segCount-1, Math.floor(segFloat));
-      const segT = segCount>0 ? segFloat-segIndex : 1;
-      const p0 = a.waypoints[segIndex], p1 = a.waypoints[Math.min(segCount, segIndex+1)];
-      const x = p0.x + (p1.x-p0.x)*segT;
-      const y = p0.y + (p1.y-p0.y)*segT;
-      const hopArc = a.isCapture ? 0 : Math.sin(segT*Math.PI) * cellPx*0.14;
-      tokenAnimOverrides[a.ci+'_'+a.tokenIdx] = { x, y: y - hopArc };
-      if(segIndex !== a.lastSeg){ a.lastSeg = segIndex; if(!a.isCapture) Audio_.sfx.diceTick(); }
-      if(t>=1){
-        a.done = true;
-        if(a.isFinish) Audio_.sfx.enterHome();
-        delete tokenAnimOverrides[a.ci+'_'+a.tokenIdx];
-      } else {
-        allDone = false;
-      }
-    });
-    renderBoard();
-    if(!allDone) requestAnimationFrame(frame);
-    else onDone();
+    try{
+      let allDone = true;
+      anims.forEach(a=>{
+        if(a.done) return;
+        // Defensive: if this animation's waypoints ever come out malformed for
+        // any reason, don't let one bad entry crash the whole loop and leave
+        // the game stuck — just resolve it instantly and move on.
+        if(!a.waypoints || a.waypoints.length < 2){ a.done = true; delete tokenAnimOverrides[a.ci+'_'+a.tokenIdx]; return; }
+        const t = Math.min(1, (now-a.startTime)/a.duration);
+        const segCount = a.waypoints.length-1;
+        const segFloat = t*segCount;
+        const segIndex = Math.min(segCount-1, Math.max(0, Math.floor(segFloat)));
+        const segT = segCount>0 ? segFloat-segIndex : 1;
+        const p0 = a.waypoints[segIndex], p1 = a.waypoints[Math.min(segCount, segIndex+1)];
+        if(!p0 || !p1){ a.done = true; delete tokenAnimOverrides[a.ci+'_'+a.tokenIdx]; return; }
+        const x = p0.x + (p1.x-p0.x)*segT;
+        const y = p0.y + (p1.y-p0.y)*segT;
+        const hopArc = a.isCapture ? 0 : Math.sin(segT*Math.PI) * cellPx*0.14;
+        tokenAnimOverrides[a.ci+'_'+a.tokenIdx] = { x, y: y - hopArc };
+        if(segIndex !== a.lastSeg){ a.lastSeg = segIndex; if(!a.isCapture) Audio_.sfx.diceTick(); }
+        if(t>=1){
+          a.done = true;
+          if(a.isFinish) Audio_.sfx.enterHome();
+          delete tokenAnimOverrides[a.ci+'_'+a.tokenIdx];
+        } else {
+          allDone = false;
+        }
+      });
+      renderBoard();
+      if(!allDone) requestAnimationFrame(frame);
+      else onDone();
+    } catch(e){
+      // Whatever went wrong, never leave the game permanently stuck on
+      // "moving…" — clear everything and let the turn continue.
+      console.warn('[Ludo] token animation hit an error, finishing it early so the game keeps going:', e);
+      Object.keys(tokenAnimOverrides).forEach(k=> delete tokenAnimOverrides[k]);
+      try{ renderBoard(); }catch(e2){}
+      onDone();
+    }
   }
-  requestAnimationFrame(frame);
+  try{
+    requestAnimationFrame(frame);
+  } catch(e){
+    console.warn('[Ludo] animation failed to start, skipping:', e);
+    Object.keys(tokenAnimOverrides).forEach(k=> delete tokenAnimOverrides[k]);
+    onDone();
+  }
 }
 
 function roundRect(ctx,x,y,w,h,r){
@@ -2548,13 +2595,13 @@ function applyRemoteState(d){
   buildPlayerList();
   renderDice(); updateTurnCaption();
   G.animating = true;
-  animateBoardTransition(oldTokens, G.tokens, ()=>{
+  animateBoardTransition(oldTokens, G.tokens, withAnimationWatchdog(()=>{
     G.animating = false;
     renderBoard(); renderDice();
     if(G.winnerSeat!==null && wasWinner===null){
       endGame(G.winnerSeat);
     }
-  });
+  }));
 }
 
 /* ============================= BACKGROUND LOOP ============================= */
