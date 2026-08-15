@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Snake — a quiet drift through the garden</title>
+<title>Aurora Snake - a quiet drift through the garden</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -323,7 +323,7 @@
         <div class="stat-value small" id="speedVal">Calm</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>Fruit sprouts wherever there's room. Guide the snake gently — it grows with every bite, and the pace eases up as it does.</div>
+        <div>Fruit sprouts wherever there's room. Guide the snake gently - it grows with every bite, and the pace eases up as it does.</div>
       </div>
     </div>
   </main>
@@ -346,7 +346,7 @@
     <div class="row"><span class="k">Grow</span><span class="v">Guide the snake over the fruit</span></div>
     <div class="row"><span class="k">Avoid</span><span class="v">Walls (or your own tail, always)</span></div>
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, centre D-pad button, or gamepad Start</span></div>
-    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select - only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Calm pace</span><span class="v">speed eases in slowly</span></div>
     <div class="row"><span class="k">Wall or Portal edges</span><span class="v">choose whether edges end the run or wrap you to the other side</span></div>
@@ -546,7 +546,7 @@ const Audio_ = (function(){
 })();
 
 /* ============================= CHEAT CODE ============================= */
-// Classic Konami code — enter it any time during play to toggle the cheat.
+// Classic Konami code - enter it any time during play to toggle the cheat.
 const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 let cheatBuffer = [];
 let cheatActive = false;
@@ -623,7 +623,7 @@ function pollGamepad(){
   }
   if(overlayPauseVisible){
     if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
-    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select - only while paused
     return;
   }
 
