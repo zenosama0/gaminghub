@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Pong — a quiet rally back and forth</title>
+<title>Aurora Pong - a quiet rally back and forth</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -257,7 +257,7 @@
 
       <div class="overlay visible" id="overlayStart">
         <h2>Ready when you are</h2>
-        <p>A calm little rally — first to the target score, at whatever pace suits you.</p>
+        <p>A calm little rally - first to the target score, at whatever pace suits you.</p>
         <div class="mode-row" id="modeRow">
           <button class="mode-btn" data-mode="calm">Calm</button>
           <button class="mode-btn active" data-mode="steady">Steady</button>
@@ -280,7 +280,7 @@
 
       <div class="overlay" id="overlayGameOver">
         <h2 id="overTitle">Settled</h2>
-        <p id="finalScoreText">You 0 — 0 Opponent</p>
+        <p id="finalScoreText">You 0 - 0 Opponent</p>
         <div class="mode-row" id="modeRowOver">
           <button class="mode-btn" data-mode="calm">Calm</button>
           <button class="mode-btn" data-mode="steady">Steady</button>
@@ -306,7 +306,7 @@
         <div class="stat-value small" id="rallyVal">0</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>An AI opponent that plays like it's actually watching the ball — pick Easy, Normal, or Hard to match how much of a challenge you're after.</div>
+        <div>An AI opponent that plays like it's actually watching the ball - pick Easy, Normal, or Hard to match how much of a challenge you're after.</div>
       </div>
     </div>
   </main>
@@ -325,7 +325,7 @@
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the centre mobile button</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Three paces</span><span class="v">Calm, Steady, Swift</span></div>
-    <div class="row"><span class="k">Opponent difficulty</span><span class="v">Easy, Normal, Hard — changes how sharp the AI's aim and reactions are</span></div>
+    <div class="row"><span class="k">Opponent difficulty</span><span class="v">Easy, Normal, Hard - changes how sharp the AI's aim and reactions are</span></div>
     <div class="row"><span class="k">Gamepad support</span><span class="v">left stick / d-pad to move, d-pad L/R changes pace, d-pad U/D changes difficulty, Select returns to hub while paused</span></div>
     <div class="row"><span class="k">Cheat code</span><span class="v">↑↑↓↓←→←→BA toggles a mega paddle</span></div>
     <div class="row"><span class="k">Soft glow trail</span><span class="v">a calm visual signature</span></div>
@@ -547,7 +547,7 @@ window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
 /* ============================= CHEAT CODE ============================= */
-// Classic Konami code — enter it any time during play to toggle the cheat.
+// Classic Konami code - enter it any time during play to toggle the cheat.
 const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 let cheatBuffer = [];
 let cheatActive = false;
@@ -711,7 +711,7 @@ let currentMode = 'steady';
 // match feels, difficulty sets how sharp the opponent actually plays. The
 // AI only "decides" on a fresh aim point every decisionMs (like a person
 // glancing at the ball rather than tracking it continuously), and each
-// decision has some aim error — both get tighter as difficulty goes up.
+// decision has some aim error - both get tighter as difficulty goes up.
 const AI_DIFFICULTY = {
   easy:   { label:'Easy',   speedMul:0.52, decisionMs:450, error:58 },
   normal: { label:'Normal', speedMul:0.72, decisionMs:260, error:40 },
@@ -773,7 +773,7 @@ function updateGame(dt){
   player.y = Math.max(0, Math.min(BOARD_H-playerPaddleH, player.y));
 
   // AI: only re-aims periodically (like a glance, not continuous tracking),
-  // with some imprecision each time — both loosen up on Easy and tighten on
+  // with some imprecision each time - both loosen up on Easy and tighten on
   // Hard. When the ball's headed away, it just drifts back toward center.
   const diffCfg = AI_DIFFICULTY[aiDifficulty];
   const aiSpeed = MODES[currentMode].aiSpeed * diffCfg.speedMul;
@@ -855,7 +855,7 @@ function endMatch(won){
   localStorage.setItem('apong_highscore', String(highScore));
   CloudSync.push(highScore);
   document.getElementById('overTitle').textContent = won ? 'You took the rally' : 'Settled';
-  document.getElementById('finalScoreText').textContent = `You ${score} — ${oppScore} Opponent`;
+  document.getElementById('finalScoreText').textContent = `You ${score} - ${oppScore} Opponent`;
   document.getElementById('overlayGameOver').classList.add('visible');
   updateHUD();
 }
@@ -949,7 +949,7 @@ function pollGamepad(){
     if(gameState==='idle' || gameState==='over') startGame();
     else if(gameState==='paused') togglePause();
   }
-  if(overlayPauseVisible && GamepadNav.justPressed(gp, 8)){ // Select — only while paused
+  if(overlayPauseVisible && GamepadNav.justPressed(gp, 8)){ // Select - only while paused
     window.location.href = '../index.html';
   }
 }
