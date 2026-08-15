@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Drift — a quiet float through the debris field</title>
+<title>Aurora Drift - a quiet float through the debris field</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -306,7 +306,7 @@
 
       <div class="overlay visible" id="overlayStart">
         <h2>Ready when you are</h2>
-        <p>Drift, turn, and clear the field at whatever pace feels right. The edges just wrap around — nothing to crash into but the rocks.</p>
+        <p>Drift, turn, and clear the field at whatever pace feels right. The edges just wrap around - nothing to crash into but the rocks.</p>
         <div class="mode-row" id="modeRow">
           <button class="mode-btn" data-mode="calm">Calm</button>
           <button class="mode-btn active" data-mode="steady">Steady</button>
@@ -343,7 +343,7 @@
         <div class="stat-value small" id="remainVal">0</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>Big rocks split into smaller ones when you hit them — the small ones are worth the most, and the trickiest to catch.</div>
+        <div>Big rocks split into smaller ones when you hit them - the small ones are worth the most, and the trickiest to catch.</div>
       </div>
     </div>
   </main>
@@ -363,7 +363,7 @@
 <div class="console-overlay" id="consoleOverlay">
   <div class="console-box">
     <div class="console-log" id="consoleLog">
-      <div class="console-line">Aurora Drift console — type <span style="color:var(--gold);">help</span> and press Enter.</div>
+      <div class="console-line">Aurora Drift console - type <span style="color:var(--gold);">help</span> and press Enter.</div>
     </div>
     <div class="console-input-row">
       <span class="console-prompt">›</span>
@@ -380,7 +380,7 @@
     <div class="row"><span class="k">Fire</span><span class="v">Space / FIRE button / gamepad A or B</span></div>
     <div class="row"><span class="k">Goal</span><span class="v">Clear each wave of asteroids without losing all your lives</span></div>
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or gamepad Start</span></div>
-    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select - only while paused</span></div>
     <h3 style="margin-top:20px;">The console</h3>
     <div class="row"><span class="k">Open / close</span><span class="v">press <kbd>`</kbd> (backtick) or tap the &gt;_ icon</span></div>
     <div class="row"><span class="k">Try</span><span class="v">type <strong>help</strong> and press Enter</span></div>
@@ -1152,7 +1152,7 @@ function runCommand(raw){
       Cheats.godmode = !Cheats.godmode;
       renderLives();
       Audio_.sfx.cheat();
-      logLine('Godmode ' + (Cheats.godmode ? 'ON — asteroids can\'t touch you' : 'off'), 'ok');
+      logLine('Godmode ' + (Cheats.godmode ? 'ON - asteroids can\'t touch you' : 'off'), 'ok');
       break;
     case 'rapidfire':
       Cheats.rapidfire = !Cheats.rapidfire;
@@ -1172,7 +1172,7 @@ function runCommand(raw){
         asteroids = [];
         Audio_.sfx.wave();
         showToast('Field wiped');
-        logLine('Asteroid field wiped — next wave incoming', 'ok');
+        logLine('Asteroid field wiped - next wave incoming', 'ok');
       } else {
         logLine('Start a run first.', 'err');
       }
@@ -1207,7 +1207,7 @@ function runCommand(raw){
       closeConsole();
       break;
     default:
-      logLine('Unknown command: "' + cmd + '" — try "help"', 'err');
+      logLine('Unknown command: "' + cmd + '" - try "help"', 'err');
   }
 }
 
