@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Memory — a quiet game of remembering</title>
+<title>Aurora Memory - a quiet game of remembering</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -272,7 +272,7 @@
       </div>
       <div>
         <div class="stat-label">Best (fewest)</div>
-        <div class="stat-value small" id="highScoreVal">—</div>
+        <div class="stat-value small" id="highScoreVal">-</div>
       </div>
       <div class="hint-block">
         <div style="margin-bottom:6px;">Tap, click, or arrow keys + Enter</div>
@@ -324,7 +324,7 @@
         <div class="stat-value small" id="diffVal">Medium</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>Fewer moves means a sharper memory — but there's no clock here, so take whatever pace feels good.</div>
+        <div>Fewer moves means a sharper memory - but there's no clock here, so take whatever pace feels good.</div>
       </div>
     </div>
   </main>
@@ -552,7 +552,7 @@ const CloudSync = (function(){
 
 /* ============================= INPUT MODE (nav vs pointer) ============================= */
 // The card focus ring should only show up when steering with a keyboard or
-// gamepad — not with a mouse or touch, where hover/tap already do the job.
+// gamepad - not with a mouse or touch, where hover/tap already do the job.
 let navMode = false;
 function setNavMode(on){
   if(navMode === on) return;
@@ -565,7 +565,7 @@ window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
 /* ============================= CHEAT CODE ============================= */
-// Classic Konami code — enter it any time during play to briefly peek at
+// Classic Konami code - enter it any time during play to briefly peek at
 // every card. One-shot rather than a toggle, since "always visible" would
 // remove the game entirely instead of just helping.
 const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
@@ -840,7 +840,7 @@ function pollGamepad(){
     if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ // A / Start
       togglePause();
     }
-    if(GamepadNav.justPressed(gp, 8)){ // Select — only acts while paused
+    if(GamepadNav.justPressed(gp, 8)){ // Select - only acts while paused
       window.location.href = '../index.html';
     }
   }
@@ -852,7 +852,7 @@ function updateHUD(){
   document.getElementById('pairsVal').textContent = `${pairsFound} / ${totalPairs}`;
   document.getElementById('diffVal').textContent = MODES[currentMode].label;
   const best = bestMoves[currentMode];
-  document.getElementById('highScoreVal').textContent = best ? best : '—';
+  document.getElementById('highScoreVal').textContent = best ? best : '-';
 }
 
 function showToast(text){
