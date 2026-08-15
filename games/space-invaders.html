@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Invaders — a quiet watch over the sky</title>
+<title>Aurora Invaders - a quiet watch over the sky</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -313,7 +313,7 @@
     <div class="row"><span class="k">Fire</span><span class="v">Space / FIRE button / gamepad A or B</span></div>
     <div class="row"><span class="k">Goal</span><span class="v">Clear each wave before it reaches you</span></div>
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or gamepad Start</span></div>
-    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select - only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Gentle difficulty ramp</span><span class="v">waves ease in gradually</span></div>
     <div class="row"><span class="k">Soft glow trails</span><span class="v">a calm visual signature</span></div>
@@ -910,7 +910,7 @@ function fire(){
 }
 
 /* ============================= CHEAT CODE ============================= */
-// Classic Konami code — enter it any time during play to toggle the cheat.
+// Classic Konami code - enter it any time during play to toggle the cheat.
 const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 let cheatBuffer = [];
 let cheatActive = false;
@@ -972,7 +972,7 @@ function pollGamepad(){
   }
   if(overlayPauseVisible){
     if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
-    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select - only while paused
     return;
   }
 
