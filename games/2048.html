@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora 2048 — a quiet slide toward the horizon</title>
+<title>Aurora 2048 - a quiet slide toward the horizon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -323,9 +323,9 @@
     <h3>How to play</h3>
     <div class="row"><span class="k">Slide</span><span class="v">Arrow keys / WASD / D-pad / swipe / gamepad</span></div>
     <div class="row"><span class="k">Merge</span><span class="v">Two equal tiles combine into one</span></div>
-    <div class="row"><span class="k">Goal</span><span class="v">Reach 2048 — or just keep going</span></div>
+    <div class="row"><span class="k">Goal</span><span class="v">Reach 2048 - or just keep going</span></div>
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, centre D-pad button, or gamepad Start</span></div>
-    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select - only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">Smooth slide & merge animation</span><span class="v">satisfying motion</span></div>
     <div class="row"><span class="k">Undo-free, save-free calm</span><span class="v">just the tiles, no pressure</span></div>
@@ -567,7 +567,7 @@ function pollGamepad(){
   }
   if(overlayPauseVisible){
     if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
-    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select - only while paused
     return;
   }
 
