@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Tetris — a calm night of falling blocks</title>
+<title>Aurora Tetris - a calm night of falling blocks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -415,7 +415,7 @@
     <div class="row"><span class="k">Hard drop</span><span class="v">Space · swipe down fast · gamepad Y</span></div>
     <div class="row"><span class="k">Hold piece</span><span class="v">C · swipe up · HOLD button · gamepad X</span></div>
     <div class="row"><span class="k">Pause</span><span class="v">P, Esc, or the gamepad Start button</span></div>
-    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select — only while paused</span></div>
+    <div class="row"><span class="k">Return to hub</span><span class="v">gamepad Select - only while paused</span></div>
     <h3 style="margin-top:20px;">Features</h3>
     <div class="row"><span class="k">7-bag randomizer</span><span class="v">fair piece order</span></div>
     <div class="row"><span class="k">Ghost piece</span><span class="v">see where it lands</span></div>
@@ -509,7 +509,7 @@ const PIECE_NAMES = Object.keys(SHAPES);
 const KICKS = [[0,0],[-1,0],[1,0],[0,-1],[-1,-1],[1,-1],[0,1],[-2,0],[2,0]];
 
 /* ============================= AUDIO ENGINE ============================= */
-// Fully synthesized with the Web Audio API — no external files, no copyrighted
+// Fully synthesized with the Web Audio API - no external files, no copyrighted
 // samples. An original slow-drifting ambient pad + soft bell arpeggio for music,
 // and small synthesized blips/knocks/chimes for sound effects.
 const Audio_ = (function(){
@@ -541,7 +541,7 @@ const Audio_ = (function(){
   }
 
   function startNoiseBed(){
-    // very soft filtered noise, like distant wind — calming atmosphere bed
+    // very soft filtered noise, like distant wind - calming atmosphere bed
     const bufferSize = 2*ctx.sampleRate;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -714,7 +714,7 @@ window.addEventListener('mousedown', ()=> setNavMode(false));
 window.addEventListener('touchstart', ()=> setNavMode(false), { passive:true });
 
 /* ============================= CHEAT CODE ============================= */
-// Classic Konami code — enter it any time during play to toggle the cheat.
+// Classic Konami code - enter it any time during play to toggle the cheat.
 const CHEAT_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 let cheatBuffer = [];
 let cheatActive = false;
@@ -1289,7 +1289,7 @@ function pollGamepad(){
   }
   if(overlayPauseVisible){
     if(GamepadNav.justPressed(gp, 0) || GamepadNav.justPressed(gp, 9)){ setNavMode(true); togglePause(); } // A / Start
-    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select — only while paused
+    if(GamepadNav.justPressed(gp, 8)) window.location.href = '../index.html'; // Select - only while paused
     return;
   }
 
