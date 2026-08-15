@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Aurora Breakout — a quiet chain of small clears</title>
+<title>Aurora Breakout - a quiet chain of small clears</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -308,7 +308,7 @@
         <div class="stat-value small" id="remainVal">0</div>
       </div>
       <div class="hint-block" style="margin-top:0;">
-        <div>Clear every brick and the next wall begins, a touch quicker each time. Miss the ball and you'll get another go — three tries per round.</div>
+        <div>Clear every brick and the next wall begins, a touch quicker each time. Miss the ball and you'll get another go - three tries per round.</div>
       </div>
     </div>
   </main>
@@ -323,7 +323,7 @@
 <div class="console-overlay" id="consoleOverlay">
   <div class="console-box">
     <div class="console-log" id="consoleLog">
-      <div class="console-line">Aurora Breakout console — type <span style="color:var(--gold);">help</span> and press Enter.</div>
+      <div class="console-line">Aurora Breakout console - type <span style="color:var(--gold);">help</span> and press Enter.</div>
     </div>
     <div class="console-input-row">
       <span class="console-prompt">›</span>
@@ -806,10 +806,10 @@ function buildBricks(lvl){
   let list = [];
   for(let r=0;r<rows;r++) list = list.concat(makeRow(r));
 
-  // Safety net: however unlikely, never ship a level with no bricks at all —
+  // Safety net: however unlikely, never ship a level with no bricks at all -
   // fall back to a plain full grid so the game can never get stuck. (The
   // layout functions are deterministic, so retrying the same one would just
-  // reproduce the same empty result — build a guaranteed-full grid instead.)
+  // reproduce the same empty result - build a guaranteed-full grid instead.)
   if(list.length === 0){
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
@@ -1012,7 +1012,7 @@ function updateGame(dt){
     if(ball.x + BALL_R > BOARD_W){ ball.x = BOARD_W-BALL_R; ball.vx *= -1; Audio_.sfx.wallHit(); }
     if(ball.y - BALL_R < 0){ ball.y = BALL_R; ball.vy *= -1; Audio_.sfx.wallHit(); }
 
-    // paddle collision — small additive speed nudge, capped, so a long rally
+    // paddle collision - small additive speed nudge, capped, so a long rally
     // never spirals into an unplayable blur.
     if(ball.vy > 0 && ball.y + BALL_R > PADDLE_Y && ball.y + BALL_R < PADDLE_Y + PADDLE_H + 12 &&
        ball.x > paddle.x - BALL_R && ball.x < paddle.x + paddleWidth + BALL_R){
@@ -1025,7 +1025,7 @@ function updateGame(dt){
       Audio_.sfx.paddleHit();
     }
 
-    // brick collisions — metal balls plow straight through 1-hit bricks,
+    // brick collisions - metal balls plow straight through 1-hit bricks,
     // but still one-shot (and ricochet off) anything tougher.
     for(const b of bricks){
       if(!b.alive) continue;
@@ -1223,7 +1223,7 @@ function pollGamepad(){
     else if(gameState==='running') launchBall();
     else if(gameState==='paused') togglePause();
   }
-  if(gameState==='paused' && GamepadNav.justPressed(gp, 8)){ // Select — only while paused
+  if(gameState==='paused' && GamepadNav.justPressed(gp, 8)){ // Select - only while paused
     window.location.href = '../index.html';
   }
 }
@@ -1278,7 +1278,7 @@ function runCommand(raw){
       cheatActive = !cheatActive;
       renderLives();
       Audio_.sfx.cheat();
-      logLine('Godmode ' + (cheatActive ? 'ON — infinite lives' : 'off'), 'ok');
+      logLine('Godmode ' + (cheatActive ? 'ON - infinite lives' : 'off'), 'ok');
       break;
     case 'lives': {
       const n = parseInt(arg,10);
@@ -1314,7 +1314,7 @@ function runCommand(raw){
         updateHUD();
         showToast('Wall wiped');
         Audio_.sfx.levelClear();
-        logLine('Bricks wiped — next wall incoming', 'ok');
+        logLine('Bricks wiped - next wall incoming', 'ok');
       } else {
         logLine('Start a run first.', 'err');
       }
@@ -1341,7 +1341,7 @@ function runCommand(raw){
       closeConsole();
       break;
     default:
-      logLine('Unknown command: "' + cmd + '" — try "help"', 'err');
+      logLine('Unknown command: "' + cmd + '" - try "help"', 'err');
   }
 }
 
